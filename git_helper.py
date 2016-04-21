@@ -44,20 +44,28 @@ def git_checkout(commit, orig_dir, git_name=None,target_dir=None, prefix=None):
     prefix=''
   else:
     prefix='%s_' % prefix
-  git_dir = os.path.join(orig_dir, git_name)
+
   commit_hash, unix_time = commit.split(' ')
   human_time = unix_to_human_time(unix_time)
   print "%s commit %s (%s)" % (orig_dir.split('/')[-1], commit_hash, human_time)
+
+  if target_dir: # check if already expanded
+    target_commit_dir = os.path.join(target_dir,
+                     "%s%s_%s" % (prefix, unix_time, commit_hash))
+    #print "copying to target", target_commit_dir
+    if os.path.exists(target_commit_dir):
+      print "\tSkipping. Already copied to", target_commit_dir
+      return
+    else:
+      print "Expand to", target_commit_dir
+      os.makedirs(target_commit_dir)
+
+  git_dir = os.path.join(orig_dir, git_name)
   checkout_cmd = "git --git-dir=%s --work-tree=%s checkout %s" % \
     (git_dir, orig_dir, commit_hash)
   _, checkout_err = call_cmd(checkout_cmd)
 
   if target_dir:
-    target_commit_dir = os.path.join(target_dir,
-                     "%s%s_%s" % (prefix, unix_time, commit_hash))
-    #print "copying to target", target_commit_dir
-    if not os.path.exists(target_commit_dir):
-      os.makedirs(target_commit_dir)
     # ignore hidden files
     cp_cmd = "cp -r %s/* %s" % (orig_dir, target_commit_dir)
     call_cmd(cp_cmd)

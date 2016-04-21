@@ -3,7 +3,7 @@
 import os, sys, subprocess
 import pymoss
 
-use_sample = True
+use_sample = False
 homedir = "/home/ubuntu/"
 top_dir = "socialTrajectories"
 CODE_DIR_NAME = "rawdata/dir3"
@@ -23,7 +23,7 @@ STARTER_DIR_NAME = "STARTER"
 # Moss options
 CURRENT_Q = "2012_1"
 if use_sample: CURRENT_Q = "2013_1"
-MOSS_OUTPUT_DIR = os.path.join(homedir, top_dir, "moss_output")
+MOSS_OUTPUT_DIR = os.path.join(homedir, top_dir, "moss_output_test")
 filetype = "java"
 
 def call_cmd(cmd):
@@ -46,9 +46,19 @@ def multi_moss(TARGET_DIR, CURRENT_Q,
 
   TEMP_DIR_NAME = "temp"
   quarters = [FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME]
+  count = 100
   for commit in os.listdir(CURRENT_Q):
     print("starting moss for commit", commit)
+    all_files = ''.join(os.listdir(os.path.join(CURRENT_Q, commit)))
+    if filetype not in all_files:
+      print("skipping dir %s (no %s files)" % (commit, filetype))
+      continue
     commit_temp_dir = os.path.join(TEMP_DIR_NAME, commit)
+
+    commit_moss_dir = os.path.join(MOSS_OUTPUT_DIR, CURRENT_Q, commit)
+    if os.path.exists(commit_moss_dir):
+      print("commit already processed")
+      continue
     if not os.path.exists(commit_temp_dir):
       os.makedirs(commit_temp_dir)
     cp_cmd = "cp -r %s/* %s" % (os.path.join(CURRENT_Q, commit),
@@ -65,15 +75,15 @@ def multi_moss(TARGET_DIR, CURRENT_Q,
       m.run()
       h = pymoss.Html(m, "%s" % commit)
       moss_dir = (h.gen_all()).split('/')[-1]
-      mv_cmd = "mv %s %s" % (os.path.join(cwd, moss_dir),
-                             os.path.join(MOSS_OUTPUT_DIR, CURRENT_Q, commit))
-      print("moving moss output to",
-                    os.path.join(MOSS_OUTPUT_DIR, CURRENT_Q, commit))
+      mv_cmd = "mv %s %s" % (os.path.join(cwd, moss_dir), commit_moss_dir)
+      print("moving moss output to", commit_moss_dir)
       call_cmd(mv_cmd)
     finally: m.cleanup()
 
     rm_cmd = "rm -r %s" % (os.path.join(TARGET_DIR,commit_temp_dir))
     call_cmd(rm_cmd)
+    count -= 1
+    if count == 0: break
 
 if __name__ == "__main__":
   pymoss.util.time("Running all moss", lambda:

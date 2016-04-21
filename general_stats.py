@@ -45,8 +45,50 @@ def get_submit_time(student_dir):
 # For each student dir in the code_dir, check the timestamp of their last
 # commit.
 def check_timestamps(code_dir):
+  uname_quarters = {}
+  orig_all_unames = 0
+  all_year_q = set()
   for f in os.listdir(code_dir):
-    print get_submit_time(code_dir + '/' + f)
+    uname = f.split('/')[-1].split('_')[0]
+    orig_all_unames += 1
+    if uname not in uname_quarters:
+      uname_quarters[uname] = []
+    student_dir = os.path.join(code_dir, f)
+    year_q = get_submit_time(student_dir)
+    all_year_q.add(year_q)
+    date_str = git_log(git_dir=student_dir,
+             lines=1,
+             format_str='%h %ct',
+             extra_str ='--date=local')
+    if not date_str:
+    #   print "expand: %s ignored, corrupt git" % (student_dir)
+      continue
+    uname_quarters[uname].append((f, date_str))
+  all_unames = 0
+  valid_unames = 0
+  for uname in uname_quarters:
+    all_unames += 1
+    if uname_quarters[uname]:
+      valid_unames += 1
+  print "valid names", valid_unames, "all names", all_unames, "all in listdir", orig_all_unames
+  print "all quarters", all_year_q
+  return uname_quarters
+
+"""
+Returns the directory of each user with a valid git repo.
+Students sometimes submit several times, so take the last submit
+of each student.
+"""
+def get_unique_unames(code_dir):
+  uname_quarters = check_timestamps(code_dir)
+  unique_unames = []
+  for uname in uname_quarters:
+    if not uname_quarters[uname]: continue
+    uname_submits = [int(x[0].split('_')[-1]) for x in uname_quarters[uname]]
+    unique_unames.append('%s_%d' % (uname, max(uname_submits)))
+  print '\n'.join(unique_unames)
+  print "sanity check num unames", len(unique_unames)
+  return unique_unames
 
 """
 For each student dir in the code_dir, save a log of

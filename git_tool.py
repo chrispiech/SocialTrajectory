@@ -10,6 +10,8 @@ Timestamp: UNIX timestamp.
   To convert to human dates: date -d @<dirname>
 """
 def expand_all_commits(code_dir, target_dir):
+  print code_dir
+  uname_lookup_by_year_q = load_uname_lookup_by_year_q()
   for student in os.listdir(code_dir):
     student_dir = os.path.join(code_dir, student)
     all_commits = git_log(git_dir=student_dir,
@@ -21,9 +23,14 @@ def expand_all_commits(code_dir, target_dir):
 
     year_q = get_submit_time(student_dir) 
     year_target_dir = os.path.join(target_dir, year_q)
-    print "expand to:", target_dir
+
+    add_uname_to_lookup(student, year_q, uname_lookup_by_year_q)
+    student_id = uname_lookup_by_year_q[year_q][student]
+    print student, student_id
     for commit in all_commits:
-      git_checkout(commit, orig_dir=student_dir, target_dir=year_target_dir, prefix=student)
+      git_checkout(commit, orig_dir=student_dir, target_dir=year_target_dir, prefix=student_id)
+  export_uname_lookup_by_year_q(uname_lookup_by_year_q)
+  
 
 """
 Removes commits from the expanded directory that do not
@@ -50,13 +57,18 @@ Copy all final submissions to the directory specified.
 """
 def copy_all_final(code_dir, final_submissions_dir):
   reset_all_to_master(code_dir)
+  uname_lookup_by_year_q = load_uname_lookup_by_year_q()
   for student in os.listdir(code_dir):
     student_dir = os.path.join(code_dir, student)
     year_q = get_submit_time(student_dir) 
     if not year_q: continue
-    target_final_dir = os.path.join(final_submissions_dir, "%s_%s" % (year_q, student))
+    add_uname_to_lookup(student, year_q, uname_lookup_by_year_q)
+    student_id = uname_lookup_by_year_q[year_q][student]
+    #target_final_dir = os.path.join(final_submissions_dir, "%s_%s" % (year_q, student))
+    target_final_dir = os.path.join(final_submissions_dir, student_id)
     if not os.path.exists(target_final_dir):
       os.makedirs(target_final_dir)
     cp_cmd = "cp -r %s/* %s" % (student_dir, target_final_dir)
     call_cmd(cp_cmd)
     print "Copied student %s (%s) to final dir %s" % (student, year_q, target_final_dir)
+  export_uname_lookup_by_year_q(uname_lookup_by_year_q)
