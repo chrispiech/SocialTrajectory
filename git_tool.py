@@ -31,7 +31,6 @@ def expand_all_commits(code_dir, target_dir):
       git_checkout(commit, orig_dir=student_dir, target_dir=year_target_dir, prefix=student_id)
   export_uname_lookup_by_year_q(uname_lookup_by_year_q)
   
-
 """
 Removes commits from the expanded directory that do not
 have the right files for MOSS processing.

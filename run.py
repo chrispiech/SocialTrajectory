@@ -4,6 +4,8 @@ from moss_tool import *
 from moss_stats import *
 from gephi_tool import *
 from anonymize import *
+from tokenize_tool import *
+from prob_tool import *
 import random
 
 use_sample = False
@@ -35,15 +37,21 @@ Expands all commits.
 
 """
 def run(code_dir, target_dir, final_submissions_dir, output_dir):
-  reset_all_to_master(code_dir)
+  #reset_all_to_master(code_dir)
   #check_timestamps(code_dir)
   #get_unique_unames(code_dir)
+
+  #expand_all_commits(code_dir, target_dir)
+  # check_all_commits(target_dir, "2012_1")
+  #copy_all_final(code_dir, final_submissions_dir)
+  pass
+
+def graph_nonmoss(code_dir, output_dir):
   #all_timestamps(code_dir, output_dir)
   #plot_times(output_dir)
 
-  expand_all_commits(code_dir, target_dir)
-  # check_all_commits(target_dir, "2012_1")
-  #copy_all_final(code_dir, final_submissions_dir)
+  #all_diffs(code_dir, output_dir)
+  plot_diffs(output_dir, '2012_1')
 
 def moss(moss_dir, output_dir, final_submissions_dir):
   for year_q_dirname in os.listdir(output_dir):
@@ -68,6 +76,37 @@ def gephi(moss_dir, output_dir):
     if use_sample:
       if year_q_dirname == "2012_1": print "ignoring 2012"; continue
     create_gephi(output_dir, year_q_dirname)
+
+def tokenize(commit_dir, output_dir):
+  for year_q_dirname in os.listdir(output_dir):
+    try:
+      year, q = year_q_dirname.split('_')
+      int(year), int(q)
+    except: continue
+    print "Tokenizing dir %s" % (year_q_dirname)
+    if year_q_dirname != "2012_1": print "ignoring all non-2012"; continue
+    #token_preprocess(commit_dir, output_dir, year_q_dirname)
+    #token_process(commit_dir, output_dir, year_q_dirname)
+    #remove_empty_files(output_dir, year_q_dirname) # empty files created after thresholding
+    #write_unique_docs_no_thresh(commit_dir, output_dir, year_q_dirname) # prior to thresholding
+    #use_user(output_dir, year_q_dirname)
+    make_token_counts(output_dir, year_q_dirname) 
+    # use_commitdoc(output_dir, year_q_dirname)
+
+def probs(commit_dir, output_dir):
+  for year_q_dirname in os.listdir(output_dir):
+    try:
+      year, q = year_q_dirname.split('_')
+      int(year), int(q)
+    except: continue
+    print "Tokenizing dir %s" % (year_q_dirname)
+    if year_q_dirname != "2012_1": print "ignoring all non-2012"; continue
+    #write_p_dict(output_dir, year_q_dirname)
+    #token_probs(output_dir, year_q_dirname)
+    #parse_token_probs(output_dir, year_q_dirname)
+    #token_probs_pairs(output_dir, year_q_dirname)
+    parse_token_probs_pairs(output_dir, year_q_dirname)
+    #threshold_check(output_dir, year_q_dirname)
 
 def anonymize(moss_dir, output_dir, commit_dir):
   anonymize_all(moss_dir, output_dir, commit_dir)
@@ -105,7 +144,10 @@ def make_holdout(code_dir, holdout_dir, expt_dir, n=400):
 
 if __name__ == "__main__":
   #run(CODE_DIR, COMMIT_DIR, FINAL_SUBMISSIONS_DIR, OUTPUT_DIR)
+  #graph_nonmoss(CODE_DIR, OUTPUT_DIR)
   #make_holdout(CODE_DIR, HOLDOUT_DIR, EXPT_DIR)
   #anonymize(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, COMMIT_DIR)
   #moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
-  gephi(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR)
+  #gephi(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR)
+  #tokenize(COMMIT_DIR, OUTPUT_DIR)
+  probs(COMMIT_DIR, OUTPUT_DIR)

@@ -7,7 +7,7 @@ from moss_tool import *
 from run import *
 import re
 
-def anonymize_all(moss_dir, output_dir, commit_dir):
+def anonymize_all(moss_dir, output_dir, commit_dir, code_dir=None):
   uname_lookup = load_uname_to_id_lookup()
 
   for year_q_dirname in os.listdir(output_dir):
@@ -19,6 +19,8 @@ def anonymize_all(moss_dir, output_dir, commit_dir):
     #anonymize_top_sims(moss_dir, year_q_dirname, output_dir, uname_lookup)
     #anonymize_all_sims(os.path.join(output_dir, year_q_dirname, 'moss'), uname_lookup)
     anonymize_stats(os.path.join(output_dir, year_q_dirname, 'stats'), uname_lookup)
+  if code_dir:
+    anonymize_rawdata(code_dir, uname_lookup)
 
   # new_unames = []
   # for year_q_dirname in os.listdir(commit_dir):

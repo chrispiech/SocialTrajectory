@@ -132,6 +132,7 @@ def graph_percent_vs_token(output_dir, year_q, top_sims):
   plt.close()
 
 """
+Creates multiple graphs, not just one.
 Creates one line graph per student looking at moss trends over time.
   Plots the top similarity number per timestep and ignores *who* the other
   person is.

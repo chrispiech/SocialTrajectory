@@ -4,6 +4,10 @@ import numpy as np
 import matplotlib as mpl
 mpl.use('Agg') # to enable non ssh -X
 import matplotlib.pyplot as plt
+import matplotlib.cm as cmx
+import matplotlib.colors as mplcolors
+import javalang
+import re
 
 homedir = "/home/ubuntu/"
 top_dir = "socialTrajectories"
