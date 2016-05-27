@@ -28,10 +28,10 @@ max(keys, key=sort_function)
 """
 def sort_function(user_i_dict):
   def helper(x):
-    token, log_prob, token_count = user_i_dict[x]
+    log_prob, token_count, token = user_i_dict[x]
     log_prob, token_count = float(log_prob), int(token_count)
     return -log_prob # sort by min probability
-    #return token_count # sort by token count
+    return token_count # sort by token count
   return helper
 ###############################################################################
 
@@ -39,9 +39,16 @@ def parse_token_probs_pairs(output_dir, year_q):
   prob_dir = os.path.join(output_dir, year_q, output_probs_dir, output_commitdoc_dirname)
   user_is = os.listdir(prob_dir)
   user_is.sort()
+  max_docs = []
   for user_i in user_is:
     user_j, P_dict = load_token_probs_pair(output_dir, year_q, user_i)
-    graph_token_probs_pair(output_dir, year_q, user_i, user_j, P_dict)
+    (doc_i, doc_j), (log_prob, token_count, token) = argmax_pairwise(P_dict)
+    doc_i = '%s/%s' % ('_'.join(doc_i.split('_')[:-1]), doc_i.split('_')[-1])
+    doc_j = '%s/%s' % ('_'.join(doc_j.split('_')[:-1]), doc_j.split('_')[-1])
+    max_docs.append((doc_i, doc_j, log_prob, token_count, token))
+    #graph_token_probs_pair(output_dir, year_q, user_i, user_j, P_dict)
+  with open(os.path.join(output_dir, year_q, output_probs_dir, 'max_pairs_commitdocs'), 'w') as f:
+    f.write('\n'.join(['%s\t%s\t%s\t%s\t%s' % max_doc for max_doc in max_docs]))
 
 def token_probs_pairs(output_dir, year_q):
   pairs = parse_token_probs(output_dir, year_q)
@@ -72,17 +79,20 @@ def convert_P_dict_with_lookup(P_dict):
   converted = {}
   doc_lookup = get_doc_lookup(P_dict)
   for doc_i in P_dict.keys():
-    _, posix_time_i, _, fname_i = doc_i.split('_')
+    _, posix_time_i, commit_i, fname_i = doc_i.split('_')
     i = doc_lookup[int(posix_time_i)]
     if fname_i not in converted: converted[fname_i] = {}
     for doc_j in P_dict[doc_i].keys():
-      _, posix_time_j, _, fname_j = doc_j.split('_')
+      _, posix_time_j, commit_j, fname_j = doc_j.split('_')
       j = doc_lookup[int(posix_time_j)]
       if fname_j not in converted[fname_i]: converted[fname_i][fname_j] = []
       
       # "token" is currently still a string, not a set...fix please
-      token, log_prob, token_count = P_dict[doc_i][doc_j]
-      converted[fname_i][fname_j].append((i, j, float(log_prob), int(token_count), token))
+      log_prob, token_count, token = P_dict[doc_i][doc_j]
+      converted[fname_i][fname_j].append((i, j,
+                    float(log_prob), int(token_count),
+                    token, 
+                    '%s_%s' % (posix_time_i, commit_i), '%s_%s' % (posix_time_j, commit_j)))
   return converted
 
 def graph_token_probs_pair(output_dir, year_q, user_i, user_j, P_dict):
@@ -105,7 +115,10 @@ def graph_token_probs_pair(output_dir, year_q, user_i, user_j, P_dict):
       token_counts = np.array([x[3] for x in converted[fname_i][fname_j]])
       log_probs_np = csr_matrix((log_probs, (indices[:,0], indices[:,1])), shape=(sp_dim, sp_dim)).toarray()
       token_counts_np = csr_matrix((token_counts, (indices[:,0], indices[:,1])), shape=(sp_dim, sp_dim)).toarray()
-      all_vals[(fname_i,fname_j)] = (log_probs_np, token_counts_np)
+      
+      time_commit_dict = dict([((x[0], x[1]), (x[5], x[6])) for x in converted[fname_i][fname_j]])
+
+      all_vals[(fname_i,fname_j)] = (log_probs_np, token_counts_np, time_commit_dict)
 
   # max: user_i to user_j, max doc_j time for a given doc_i time
   max_fpath = os.path.join(graph_dir, '%s_%s_max.png' % (user_i, user_j))
@@ -126,11 +139,24 @@ def graph_token_probs_pair(output_dir, year_q, user_i, user_j, P_dict):
   min_1 = 0
   max_2 = 0
   for fname_i, fname_j in all_vals:
-    log_probs_np, token_counts_np = all_vals[(fname_i, fname_j)]
+    log_probs_np, token_counts_np, time_commit_dict = all_vals[(fname_i, fname_j)]
     #nz_i, nz_j = np.nonzero(log_probs_np)
     min_log_probs = -1*np.amax(-1*log_probs_np, axis=1) # take the negative
+    amin_log_prob = np.unravel_index(np.argmax(-1*log_probs_np), log_probs_np.shape)
     max_token_counts = np.amax(token_counts_np, axis=1)
-    
+    amax_token_count = np.unravel_index(np.argmax(token_counts_np), log_probs_np.shape)
+    commit_time_min_log_prob = time_commit_dict[amin_log_prob]
+    commit_time_max_token_count = time_commit_dict[amax_token_count]
+    with open(os.path.join(output_dir, year_q, output_probs_dir, 'argmin_prob'), 'a') as f:
+      suffix_i, suffix_j = commit_time_min_log_prob
+      f_i = '%s_%s/%s' % (user_i, suffix_i, fname_i)
+      f_j = '%s_%s/%s' % (user_j, suffix_j, fname_j)
+      f.write('%s,%s,%s\n' % (f_i, f_j, log_probs_np[amin_log_prob]))
+    with open(os.path.join(output_dir, year_q, output_probs_dir, 'argmax_token'), 'a') as f:
+      suffix_i, suffix_j = commit_time_max_token_count
+      f_i = '%s_%s/%s' % (user_i, suffix_i, fname_i)
+      f_j = '%s_%s/%s' % (user_j, suffix_j, fname_j)
+      f.write('%s,%s,%s\n' % (f_i, f_j, token_counts_np[amax_token_count]))
 
     nz_j = np.nonzero(min_log_probs)
     plt_ind = fname_i_lookup[fname_i]
@@ -189,11 +215,11 @@ def parse_token_probs(output_dir, year_q, use_commitdoc=False):
   max_users = {}
   for user_i in all_users:
     for user_j in P_dict[user_i]: # all pairs users
-      token, log_prob, token_count = P_dict[user_i][user_j]
+      log_prob, token_count, token = P_dict[user_i][user_j]
       all_pairs_users.append((user_i, user_j, log_prob, token_count, token))
 
     max_user = max(P_dict[user_i].keys(), key=sort_function(P_dict[user_i]))
-    max_token, max_log_prob, token_count = P_dict[user_i][max_user]
+    max_log_prob, token_count, max_token = P_dict[user_i][max_user]
     max_users[user_i] = (user_i, max_user, max_log_prob, token_count, max_token)
   
   with open(os.path.join(output_dir, year_q,
@@ -270,7 +296,7 @@ def token_probs(output_dir, year_q, use_commitdoc=False, user_pairs=None):
         for j in range(i+1, len(users_token)): # don't include self
           users[users_token[i]].append(users_token[j])
 
-    print "%d/%d token %s, users_token %d, user pairs %s" % (count, tot_tokens, token, len(users_token), str(users))
+    print "%d/%d token %s, users_token %d, user pairs %s" % (count, tot_tokens, token, len(users_token), 'not printed') #str(users))
     if use_commitdoc: # per commit document, not user
       for user_i in users:
         for user_j in users[user_i]:
@@ -285,10 +311,10 @@ def token_probs(output_dir, year_q, use_commitdoc=False, user_pairs=None):
               log_factor_tot = log_factor_i + log_factor_j + log_p_token
       
               if doc_j not in P_dict[doc_i]:
-                P_dict[doc_i][doc_j] = [set(), 0, 0]
-              P_dict[doc_i][doc_j][0].add(token)
-              P_dict[doc_i][doc_j][1] += log_factor_tot
-              P_dict[doc_i][doc_j][2] += 1
+                P_dict[doc_i][doc_j] = [0, 0, set()]
+              P_dict[doc_i][doc_j][0] += log_factor_tot
+              P_dict[doc_i][doc_j][1] += 1
+              P_dict[doc_i][doc_j][2].add(token)
               # undirected, otherwise crap breaks
               # if doc_i not in P_dict[doc_j]:
               #   P_dict[doc_j][doc_i] = [set(), 0, 0]
@@ -314,15 +340,15 @@ def token_probs(output_dir, year_q, use_commitdoc=False, user_pairs=None):
           log_factor_tot = log_factor_i + log_factor_j + log_p_token
 
           if user_j not in P_dict[user_i]:
-            P_dict[user_i][user_j] = [set(), 0, 0]
-          P_dict[user_i][user_j][0].add(token)
-          P_dict[user_i][user_j][1] += log_factor_tot
-          P_dict[user_i][user_j][2] += 1
+            P_dict[user_i][user_j] = [0, 0, set()]
+          P_dict[user_i][user_j][0] += log_factor_tot
+          P_dict[user_i][user_j][1] += 1
+          P_dict[user_i][user_j][2].add(token)
           if user_i not in P_dict[user_j]:
-            P_dict[user_j][user_i] = [set(), 0, 0]
-          P_dict[user_j][user_i][0].add(token)
-          P_dict[user_j][user_i][1] += log_factor_tot
-          P_dict[user_j][user_i][2] += 1
+            P_dict[user_j][user_i] = [0, 0, set()]
+          P_dict[user_j][user_i][0] += log_factor_tot
+          P_dict[user_j][user_i][1] += 1
+          P_dict[user_j][user_i][2].add(token)
   # for this token granularity, write all P_dict values.
   if use_commitdoc:
     for doc_i in P_dict:
@@ -334,7 +360,8 @@ def token_probs(output_dir, year_q, use_commitdoc=False, user_pairs=None):
         f.write('\n'.join(['%s\t%s\t%s\t%s' % (doc_j,
                                 P_dict[doc_i][doc_j][0],
                                 P_dict[doc_i][doc_j][1],
-                                P_dict[doc_i][doc_j][2]) for doc_j in doc_js]))
+                                ','.join(map(str,list(P_dict[doc_i][doc_j][2])))) \
+                            for doc_j in doc_js]))
         f.write('\n')
   else:
     for i in P_dict:
@@ -344,7 +371,8 @@ def token_probs(output_dir, year_q, use_commitdoc=False, user_pairs=None):
         f.write('\n'.join(['%s\t%s\t%s\t%s' % (j,
                                 P_dict[i][j][0],
                                 P_dict[i][j][1],
-                                P_dict[i][j][2]) for j in js]))
+                                ','.join(map(str,list(P_dict[i][j][2])))) 
+                             for j in js]))
 
 """
 Load dictionary of p_i, the probability that a document contains word i.
@@ -432,8 +460,8 @@ def load_token_probs(output_dir, year_q, use_commitdoc=False):
     with open(os.path.join(prob_dir, user_i), 'r') as f:
       line = f.readline().strip()
       while line:
-        user_j, token, log_prob, token_count = line.split('\t')
-        P_dict[user_i][user_j] = (token, log_prob, token_count)
+        user_j, log_prob, token_count, token = line.split('\t')
+        P_dict[user_i][user_j] = (log_prob, token_count, token)
         line = f.readline().strip()
   return P_dict
 
@@ -449,17 +477,25 @@ def load_token_probs_pair(output_dir, year_q, user_i):
         doc_i = line
         P_dict[doc_i] = {}
       else:
-        doc_j, token, log_prob, token_count = line.split('\t')
+        doc_j, log_prob, token_count, token = line.split('\t')
         user_j_temp = doc_j.split('_')[0]
         if not user_j: user_j = user_j_temp
         elif user_j != user_j_temp:
           print "Error! More than one user_j here: %s, %s" % (user_j, user_j_temp)
           return
-        P_dict[doc_i][doc_j] = (token, log_prob, token_count)
+        P_dict[doc_i][doc_j] = (log_prob, token_count, token)
       line = f.readline().strip()
 
   return user_j, P_dict
 
+def argmax_pairwise(P_dict):
+  max_per_docs = {}
+  for doc_i in P_dict:
+    max_doc_j = max(P_dict[doc_i].keys(), key=sort_function(P_dict[doc_i]))
+    max_per_docs[(doc_i, max_doc_j)] = P_dict[doc_i][max_doc_j]
+
+  max_all_doc_is = max(max_per_docs.keys(), key=sort_function(max_per_docs))
+  return max_all_doc_is, max_per_docs[max_all_doc_is]
 
 def write_p_dict(output_dir, year_q):
   p_i_dict = load_p_numerator(output_dir, year_q)

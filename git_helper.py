@@ -3,6 +3,31 @@ from helper import *
 def unix_to_human_time(unix_time):
   return call_cmd("date -d @%s" % unix_time)[0].split('\n')[0]
 
+def git_diff(commit1, commit2, git_dir=None, git_name=None, lines=-1, format_str=None, extra_str=None):
+  if not git_name:
+    git_name = ".git"
+  if git_dir:
+    git_name = os.path.join(git_dir, git_name)
+
+  lines_str = ''
+  if lines != -1:
+    lines_str = "-%d" % lines
+
+  if not format_str:
+    format_str = ''
+  else:
+    format_str = "--pretty=format:'%s'" % format_str
+
+  if not extra_str:
+    extra_str = ''
+
+  cmd = "git --git-dir %s diff %s %s %s %s" % \
+    (git_name, lines_str, format_str, commit1, commit2)
+
+  ret_str, log_err = call_cmd(cmd)
+  if 'fatal' in log_err: return ''
+  return ret_str
+
 def git_log(git_dir=None, git_name=None, lines=-1, format_str=None, extra_str=None):
   if not git_name:
     git_name = ".git"

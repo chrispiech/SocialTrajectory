@@ -6,7 +6,10 @@ from moss_tool import *
 import matplotlib.colors as cl
 import matplotlib.cm as cmx
 
+use_annotate = False
+
 add_str = ''
+
 def make_moss_graphs(output_dir, year_q):
   # (other_username, int(tokens_matched),
   #          float(percent_self), float(percent_other))
@@ -245,7 +248,8 @@ def graph_similarities_over_time(output_dir, year_q, top_sims, sim, time_type, g
       if sim is 'posix':
         title_str = '%s [%s-%s]' % (title_str, x_labels[0], x_labels[-1])
       elif sim is 'commit':
-        title_str = '%s [%s max commits]' % (title_str, max_commits)
+        #title_str = '%s [%s max commits]' % (title_str, max_commits)
+        pass
       ax1.set_title(title_str)
       plt.tight_layout()
 
@@ -309,47 +313,6 @@ def graph_similarities_over_time(output_dir, year_q, top_sims, sim, time_type, g
     for uname in all_timeseries:
       f.write('%04d,%s\n' % (write_ind, uname))
       write_ind += 1
-
-"""Plot black line on the aggregate student plot.
-This marks the 95th percentile for similarities at any given timestep.
-"""
-def med_calc(times, sims, med_thresh=95):
-  points_by_time = {}
-  for i in range(len(times)):
-    #   
-    # for times, sims in points_std:
-    #   for i in range(len(times)):
-    time = times[i]
-    if time not in points_by_time:
-      points_by_time[time] = []
-    points_by_time[time].append(sims[i])
-  meds = []
-  for time in points_by_time:
-    sims_bound = np.percentile(np.array(points_by_time[time]), med_thresh)
-    meds.append([time, sims_bound])
-  meds_np = np.array(meds)
-  meds_np = meds_np[meds_np[:,0].argsort()]
-  print "loaded times for median."
-  return meds_np
-
-"""
-Returns the coordinates of the username label if there
-are similarities above the 95th percentile (from med_calc).
-"""
-def get_label_if_thresh(times, sims, med_lookup):
-  times = np.array(times)
-  sims = np.array(sims)
-  above_thresh = [i for i in range(len(times)) if \
-                        sims[i] > med_lookup[times[i]]]
-  # almost everyone was above the threshold at some point,
-  # so only count a significant number
-  min_violations = 0.02
-  if above_thresh and len(above_thresh)/float(len(times)) > min_violations:
-    fraction_above = sims[above_thresh]/np.array([med_lookup[time] for time in times[above_thresh]])
-    max_frac_ind = np.argmax(fraction_above)
-    max_time, max_sim = times[above_thresh][max_frac_ind], sims[above_thresh][max_frac_ind]
-    return max_time, max_sim, len(above_thresh)/float(len(times))
-  return -1, -1, -1
 
 """
 Basically the same as the regular similarities graph, but only scatter plot the times and token/percents.
@@ -463,7 +426,7 @@ def graph_all_similarities_over_time(output_dir, year_q, top_sims, sim, time_typ
     points_std = points_all[plt_ind]
     if time_type is 'posix':
       max_posix, max_sim, thresh_perc = get_label_if_thresh(posix_times_sort, sims_sort, med_lookup)
-      if max_sim != -1:
+      if max_sim != -1 and use_annotate:
         ax_std.annotate(uname[6:], xy=(max_posix, max_sim), size=10, textcoords='data')
         thresh_unames.append((uname[6:], thresh_perc))
       if scatter_online:
@@ -473,7 +436,7 @@ def graph_all_similarities_over_time(output_dir, year_q, top_sims, sim, time_typ
       points_std.append([posix_times_sort, sims_sort])
     elif time_type is 'commit':
       max_ind, max_sim, thresh_perc = get_label_if_thresh(range(len(sims_sort)), sims_sort, med_lookup)
-      if max_sim != -1:
+      if max_sim != -1 and use_annotate:
         ax_std.annotate(uname[6:], xy=(max_ind, max_sim), size=10, textcoords='data')
         thresh_unames.append((uname[6:], thresh_perc))
       if scatter_online:
@@ -489,7 +452,10 @@ def graph_all_similarities_over_time(output_dir, year_q, top_sims, sim, time_typ
   if sim is 'token':
     title_str = '%s (%s, %s)' % (title_str, sim_min, sim_max) 
   if time_type is 'posix':
-    title_str = '%s [%s-%s]' % (title_str, x_labels[0], x_labels[-1])
+    try:
+      title_str = '%s [%s-%s]' % (title_str, x_labels[0], x_labels[-1])
+    except:
+      pass
   elif time_type is 'commit':
     title_str = '%s [%s max commits]' % (title_str, max_commits)
   all_fig_dest_prefix = '%s_aggr_%s_%s' % (year_q, time_type, sim)
@@ -515,7 +481,8 @@ def graph_all_similarities_over_time(output_dir, year_q, top_sims, sim, time_typ
     plt.figure(plt_ind)
     title_str_ind = '%s (Part %s)' % (title_str, plt_ind)
     if same_plot:
-      title_str_ind = '%s (all)' % (title_str)
+      #title_str_ind = '%s (all)' % (title_str)
+      title_str_ind = '%s' % (title_str)
     ax_all[plt_ind].set_title(title_str_ind)
     ax_all[plt_ind].set_xlabel(time_type)
     ax_all[plt_ind].set_ylabel(sim)

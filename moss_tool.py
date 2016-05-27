@@ -112,9 +112,14 @@ def write_top_sims_to_file(top_sims, top_sim_path):
       top_commit_list.sort()
       for i in range(len(top_commit_list)):
         commit = top_commit_list[i]
-        _,posix_time,_ = commit.split('_')
+        top_sim_output = top_sims[uname][commit]
+        try:
+          _,posix_time,_ = commit.split('_')
+        except: # probably the baseline case happening, which only has uname
+          commit = '%s_%s_%s' % (commit, 0, 0)
+          _,posix_time,_ = commit.split('_')
         f.write('%s,' % commit)
-        f.write('%s,%s,%d,%.2f,%.2f' % top_sims[uname][commit])
+        f.write('%s,%s,%d,%.2f,%.2f' % top_sim_output)
         f.write(',%d,%s\n' % (i, posix_time))
       f.write('\n')
   print "Wrote all top matches in file", top_sim_path

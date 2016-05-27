@@ -191,6 +191,7 @@ def convert_tokens_by_user(output_dir, year_q, token_type,
   if not token_dict_user: token_dict_user = {}
   if not n_docs: n_docs = {}
   count = 0
+  weird_commits = set()
   for commit in os.listdir(token_dir):
     count += 1
     if count % 5000 == 0: print count
@@ -206,6 +207,13 @@ def convert_tokens_by_user(output_dir, year_q, token_type,
         line = f.readline()
         for token in tokens:
           if token not in token_dict_user: token_dict_user[token] = set()
+          # debugging output; remove when done
+          if user == '2012010146':
+            for filename in [appearance.split('_')[0] for appearance in appearances]:
+              if filename not in ['Breakout.java', 'BasicBreakout.java', 'Breakout2.java']:
+                print '%s\t%s\t%s' % (token, commit, filename)
+                print appearances
+                weird_commits.add(commit)
           if use_commitdoc:
             doc_appearances = ['%s_%s' % (commit, appearance.split('_')[0]) for appearance in appearances]
           else:
@@ -378,7 +386,7 @@ def load_tokens_from_token_type(output_token_type_dir,
         token_dict[token] += len(appearances)
         if use_commitdoc:
           unique_doc_count = len(set(doc_appearances))
-          doc_dict[token].add(set(doc_appearances))
+          doc_dict[token] = doc_dict[token].union(set(doc_appearances))
           for doc in set(doc_appearances):
             doc_set.add(doc)
             token_type_doc_set.add(doc)
@@ -421,7 +429,7 @@ def write_thresh_files(output_dir, final_doc_tokens):
     if token_type == output_user_dirname: continue
     fname = "%s" % (token_type)
     above_thresh_tokens = filter(
-      lambda token: final_doc_tokens[token_type][token] > preprocess_thresh,
+      lambda token: len(final_doc_tokens[token_type][token]) > preprocess_thresh,
       final_doc_tokens[token_type].keys())
     above_thresh_tokens.sort()
 
@@ -447,9 +455,15 @@ def token_process(commit_dir, output_dir, year_q, use_only=''):
     os.makedirs(token_year_dir)
   count = 0
   for commit in os.listdir(commit_year_dir):
+    if commit in ['2012010146_1351047274_d6e4463', '2012010146_1350975351_3df0e73']:
+      # these are problematic because they don't compile, so just ignore them
+      continue
+    # for redoing a single user:
+  
     if commit[:len(use_only)] != use_only:
       continue
     print count, ": Tokenizing", commit
+    #user = commit.split('_')
     make_tokens(commit_year_dir, token_year_dir, commit, ignore_tokens)
     count += 1
     #if count == 20: break
@@ -519,4 +533,6 @@ def make_token_dict(token_list, fname, ignore_tokens=None, token_dict=None):
     if token_value not in token_dict[token_type]:
       token_dict[token_type][token_value] = []
     token_dict[token_type][token_value].append('%s_%s' % (fname, str(token.position)))
+    if '\n' in token_value:
+      print 'line break', token_type, token.position, token_value
   return token_dict

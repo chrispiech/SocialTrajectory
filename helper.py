@@ -89,3 +89,45 @@ def export_uname_lookup_by_year_q(uname_lookup_by_year_q):
     mv_cmd = "cp %s %s" % (lookup_dest, lookup_orig)
     print "Moving", mv_cmd
     call_cmd(mv_cmd)
+
+"""Plot black line on the aggregate student plot.
+This marks the 95th percentile for similarities at any given timestep.
+(well, this doesn't actually plot it, but that would be the intention)
+"""
+def med_calc(times, sims, med_thresh=95):
+  points_by_time = {}
+  for i in range(len(times)):
+    #   
+    # for times, sims in points_std:
+    #   for i in range(len(times)):
+    time = times[i]
+    if time not in points_by_time:
+      points_by_time[time] = []
+    points_by_time[time].append(sims[i])
+  meds = []
+  for time in points_by_time:
+    sims_bound = np.percentile(np.array(points_by_time[time]), med_thresh)
+    meds.append([time, sims_bound])
+  meds_np = np.array(meds)
+  meds_np = meds_np[meds_np[:,0].argsort()]
+  print "loaded times for median."
+  return meds_np
+
+"""
+Returns the coordinates of the username label if there
+are similarities above the 95th percentile (from med_calc).
+"""
+def get_label_if_thresh(times, sims, med_lookup):
+  times = np.array(times)
+  sims = np.array(sims)
+  above_thresh = [i for i in range(len(times)) if \
+                        sims[i] > med_lookup[times[i]]]
+  # almost everyone was above the threshold at some point,
+  # so only count a significant number
+  min_violations = 0.02
+  if above_thresh and len(above_thresh)/float(len(times)) > min_violations:
+    fraction_above = sims[above_thresh]/np.array([med_lookup[time] for time in times[above_thresh]])
+    max_frac_ind = np.argmax(fraction_above)
+    max_time, max_sim = times[above_thresh][max_frac_ind], sims[above_thresh][max_frac_ind]
+    return max_time, max_sim, len(above_thresh)/float(len(times))
+  return -1, -1, -1
