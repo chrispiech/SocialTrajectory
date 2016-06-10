@@ -94,7 +94,7 @@ def export_uname_lookup_by_year_q(uname_lookup_by_year_q):
 This marks the 95th percentile for similarities at any given timestep.
 (well, this doesn't actually plot it, but that would be the intention)
 """
-def med_calc(times, sims, med_thresh=95):
+def med_calc(times, sims, med_thresh=87):
   points_by_time = {}
   for i in range(len(times)):
     #   
@@ -131,3 +131,19 @@ def get_label_if_thresh(times, sims, med_lookup):
     max_time, max_sim = times[above_thresh][max_frac_ind], sims[above_thresh][max_frac_ind]
     return max_time, max_sim, len(above_thresh)/float(len(times))
   return -1, -1, -1
+
+"""
+uname --> posix_time --> commit index
+"""
+def load_posix_to_commit_ind(output_dir, year_q):
+  lookup_dict = {}
+  stats_dir = os.path.join(output_dir, year_q, 'stats')
+  for student_f in os.listdir(stats_dir):
+    uname = student_f.split('.')[0]
+    lookup_dict[uname] = {}
+    with open(os.path.join(stats_dir, student_f), 'r') as f:
+      lines = f.readlines()
+      for i, line in zip(range(len(lines)-1, -1, -1), lines):
+        posix_time = line.split('\t')[1]
+        lookup_dict[uname][int(posix_time)] = i
+  return lookup_dict

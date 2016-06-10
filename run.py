@@ -7,6 +7,7 @@ from anonymize import *
 from tokenize_tool import *
 from prob_tool import *
 from diff_tool import *
+from lecture_stats import *
 import random
 
 use_sample = False
@@ -47,7 +48,7 @@ def run(code_dir, target_dir, final_submissions_dir, output_dir):
   #copy_all_final(code_dir, final_submissions_dir)
   pass
 
-def graph_nonmoss(code_dir, output_dir):
+def graph_general(code_dir, output_dir):
   #all_timestamps(code_dir, output_dir)
   #plot_times(output_dir)
   pass
@@ -57,9 +58,6 @@ def diff(code_dir, output_dir):
   process_diffs(code_dir, output_dir, '2012_1')
 
 def moss(moss_dir, output_dir, final_submissions_dir):
-  #moss_process(moss_dir, 'baseline', output_dir, final_submissions_dir)
-  #make_moss_graphs(output_dir, 'baseline')
-  #return
   for year_q_dirname in os.listdir(output_dir):
     try:
       year, q = year_q_dirname.split('_')
@@ -71,6 +69,16 @@ def moss(moss_dir, output_dir, final_submissions_dir):
     #moss_process(moss_dir, year_q_dirname, output_dir, final_submissions_dir)
     make_moss_graphs(output_dir, year_q_dirname)
     #create_gephi(output_dir, year_q_dirname)
+
+def lecture(output_dir):
+  lecture_plot(output_dir, '2012_1')
+
+def pairwise(output_dir):
+  pair = '2012010030_2012010091'
+  pair_prefix = 'max_pairs_users'
+  pair_dir = os.path.join(pair_prefix, pair)
+  #moss_process(moss_dir, pair_dir, output_dir, final_submissions_dir)
+  make_moss_pair_graphs(output_dir, pair, pair_prefix)
 
 def gephi(moss_dir, output_dir):
   for year_q_dirname in os.listdir(output_dir):
@@ -150,11 +158,13 @@ def make_holdout(code_dir, holdout_dir, expt_dir, n=400):
 
 if __name__ == "__main__":
   #run(CODE_DIR, COMMIT_DIR, FINAL_SUBMISSIONS_DIR, OUTPUT_DIR)
-  #graph_nonmoss(CODE_DIR, OUTPUT_DIR)
+  #graph_general(CODE_DIR, OUTPUT_DIR)
   #make_holdout(CODE_DIR, HOLDOUT_DIR, EXPT_DIR)
   #anonymize(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, COMMIT_DIR)
-  #moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
+  moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
+  #lecture(OUTPUT_DIR)
   #gephi(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR)
   #tokenize(COMMIT_DIR, OUTPUT_DIR)
-  probs(COMMIT_DIR, OUTPUT_DIR)
+  #probs(COMMIT_DIR, OUTPUT_DIR)
   #diff(CODE_DIR, OUTPUT_DIR)
+  #pairwise(OUTPUT_DIR)
