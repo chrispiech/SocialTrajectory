@@ -19,7 +19,7 @@ def create_gephi(output_dir, year_q):
 
 def posix_to_time_gephi(posix_time):
   posix_time = int(posix_time) # in case fed a string
-  return datetime.fromtimestamp(posix_time).strftime('%Y-%m-%dT%H:%M:%S')
+  return posix_to_time(posix_time, format_str='%Y-%m-%dT%H:%M:%S')
 
 """
 Create an array per uname (node) and puts it in a dictionary.

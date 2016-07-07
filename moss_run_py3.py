@@ -3,16 +3,20 @@
 import os, sys, subprocess
 import pymoss
 
+def load_path():
+  with open('file_path.csv', 'r') as f:
+    top_dir = f.readline().strip().split(',')[0]
+  return top_dir
+top_dir = load_path()
+
 baseline = True # running only final submissions against each other
 use_sample = False
-homedir = "/home/ubuntu/"
-top_dir = "socialTrajectories"
 CODE_DIR_NAME = "rawdata/dir3"
 if use_sample: CODE_DIR_NAME = os.path.join("rawdata", "sampledata")
-CODE_DIR = os.path.join(homedir, top_dir, CODE_DIR_NAME)
+CODE_DIR = os.path.join(top_dir, CODE_DIR_NAME)
 TARGET_DIR_NAME = "expanded_dir3"
 if use_sample: TARGET_DIR_NAME = "expanded_sampledata"
-TARGET_DIR = os.path.join(homedir, top_dir, TARGET_DIR_NAME)
+TARGET_DIR = os.path.join(top_dir, TARGET_DIR_NAME)
 
 FINAL_SUBMISSIONS_DIR_NAME = "final_submissions"
 FINAL_SUBMISSIONS_DIR = os.path.join(TARGET_DIR, FINAL_SUBMISSIONS_DIR_NAME)
@@ -26,7 +30,7 @@ STARTER_DIR_NAME = "STARTER"
 # Moss options
 CURRENT_Q = "2012_1"
 if use_sample: CURRENT_Q = "2013_1"
-MOSS_OUTPUT_DIR = os.path.join(homedir, top_dir, "moss_output")
+MOSS_OUTPUT_DIR = os.path.join(top_dir, "moss_output")
 filetype = "java"
 
 def call_cmd(cmd):
@@ -133,7 +137,7 @@ def max_pairs_users(TARGET_DIR, CURRENT_Q,
     os.makedirs(os.path.join(MOSS_OUTPUT_DIR, current_q))
 
   uname_pairs = []
-  with open(os.path.join(homedir, top_dir, "proc_output/%s/probs" % CURRENT_Q, current_q)) as f:
+  with open(os.path.join(top_dir, "proc_output/%s/probs" % CURRENT_Q, current_q)) as f:
     lines = f.readlines()
     uname_pairs = [line.split('\t')[:2] for line in lines]
 

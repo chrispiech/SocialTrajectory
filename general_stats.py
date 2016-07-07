@@ -119,7 +119,7 @@ def all_timestamps(code_dir, output_dir):
       f.write(all_commits)
     print "Wrote student log file", student_log_file
 
-def plot_times(output_dir, zoom=False):
+def plot_times(output_dir, zoom=False, use_top_sims=False):
   # POSIX time difference in seconds.
   for year_q in os.listdir(output_dir):
     if not os.path.isdir(os.path.join(output_dir, year_q, output_stats_dir)):
@@ -128,6 +128,11 @@ def plot_times(output_dir, zoom=False):
     all_students_f = os.listdir(output_stats_path)
     all_students_f.sort()
 
+    # load top sims if necessary
+    top_sims = {}
+    if use_top_sims:
+    	top_sims = load_top_sims_from_log(output_dir, year_q)
+
     graph_size = 100
     tot_graphs = 0
     plot_graph = True
@@ -135,22 +140,26 @@ def plot_times(output_dir, zoom=False):
       print "%s: Graph %d" % (year_q, tot_graphs)
       all_times = []
       students = []
-      last_submit_hash = []
       curr_k = 0
       for k in range(graph_size):
         student_ind = k + tot_graphs*graph_size
         if student_ind >= len(all_students_f):
           plot_graph = False
           break
-        student = all_students_f[student_ind]
-        student_log_file = os.path.join(output_stats_path, student)
-        with open(student_log_file, 'r') as f:
-          lines = f.readlines()
-          student_times = np.array([int(line.split('\t')[1]) \
-                              for line in lines])
-          last_submit_hash.append(lines[-1].split('\t')[0])
-          all_times.append(student_times)
-          students.append(student.split('.')[0]) # <student>.txt
+        student_ext = all_students_f[student_ind] # <student>.txt
+        student_log_file = os.path.join(output_stats_path, student_ext)
+        student = student_ext.split('.')[0]
+        if use_top_sims and student in top_sims:
+          student_times = [int(posix_t) \
+                  for posix_t in top_sims[student].keys()]
+          student_times.sort()
+        else:
+          with open(student_log_file, 'r') as f:
+            lines = f.readlines()
+            student_times = np.array([int(line.split('\t')[1]) \
+                                for line in lines])
+        all_times.append(student_times)
+        students.append(student)
       tot_graphs += 1
       offset_time = min([np.amin(times) for times in all_times])
       offset_times = [times for times in all_times]

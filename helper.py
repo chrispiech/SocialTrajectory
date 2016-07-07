@@ -8,12 +8,66 @@ import matplotlib.cm as cmx
 import matplotlib.colors as mplcolors
 import javalang
 import re
+from time import strptime, mktime
+from datetime import datetime
+from pytz import timezone
 
-homedir = "/home/ubuntu/"
-top_dir = "socialTrajectories"
+# directory things
+def load_path():
+  with open('file_path.csv', 'r') as f:
+    top_dir = f.readline().strip().split(',')[0]
+  return top_dir
 
+top_dir = load_path()
+
+# popen stuff
 def call_cmd(cmd):
   return subprocess.Popen([cmd],stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).communicate()
+
+# time stuff
+pst = timezone('US/Pacific')
+all_start_time = mktime(datetime(2012,10,15,tzinfo=pst).timetuple())
+all_end_time = mktime(datetime(2012,10,24,15,15,tzinfo=pst).timetuple())
+incr_length = 86400/2
+
+def posix_to_time(posix_t, format_str=None):
+	if not format_str:
+		format_str = '%m/%d %H:%M'
+	return pst.localize(datetime.fromtimestamp(posix_t)).strftime(format_str)
+
+# top sim loading
+add_str = ''
+def load_top_sims_from_log(output_dir, year_q):
+  top_sim_path = os.path.join(output_dir, "%s_top_sim%s.csv" % (year_q, add_str))
+  top_sims = {}
+  print ">>>>>>>>%s" % top_sim_path
+  with open(top_sim_path, 'r') as f:
+    line = f.readline()
+    uname = ''
+    while line:
+      line = line.strip()
+      if not line:
+        uname = ''
+      else:
+        line_commas = line.split(',')
+        if len(line_commas) == 1:
+          if uname: print "Error: uname already assigned"
+          uname = line
+          if uname not in top_sims:
+            top_sims[uname] = {}
+        else:
+          # own_commit, other_f_path, other_f_html, tokens_matched,
+          #       percent_self, percent_other
+          _, posix_time, commit_hash = line_commas[0].split('_')
+          #posix_time, commit_hash = line_commas[0].split('_')[-2:]
+          other_f_path, other_f_html, tokens_matched, \
+            percent_self, percent_other, commit_num, posix_t_2 = line_commas[1:]
+          top_sims[uname][posix_time] = \
+            (get_uname_from_f(other_f_path), int(tokens_matched),
+                      float(percent_self), float(percent_other),
+                      int(commit_num), commit_hash)
+      line = f.readline()
+  return top_sims
 
 # assignment code format.
 FILETYPE = 'java'
@@ -40,7 +94,7 @@ def get_uname_from_f(output_f):
 def load_uname_to_id_lookup():
   uname_to_id = {}
   
-  lookup_folder = os.path.join(homedir, top_dir, 'uname_lookup')
+  lookup_folder = os.path.join(top_dir, 'uname_lookup')
   for lookup in os.listdir(lookup_folder):
     year_q, ext = lookup.split('.')
     uname_lookup_year = load_uname_to_id_lookup_single_year_q(year_q)
@@ -51,7 +105,7 @@ def load_uname_to_id_lookup():
 def load_uname_lookup_by_year_q():
   uname_to_id = {}
   
-  lookup_folder = os.path.join(homedir, top_dir, 'uname_lookup')
+  lookup_folder = os.path.join(top_dir, 'uname_lookup')
   for lookup in os.listdir(lookup_folder):
     year_q, ext = lookup.split('.')
     uname_to_id[year_q] = load_uname_to_id_lookup_single_year_q(year_q)
@@ -59,7 +113,7 @@ def load_uname_lookup_by_year_q():
   
 def load_uname_to_id_lookup_single_year_q(year_q):
   uname_to_id = {}
-  lookup_folder = os.path.join(homedir, top_dir, 'uname_lookup')
+  lookup_folder = os.path.join(top_dir, 'uname_lookup')
   lookup_dest = os.path.join(lookup_folder, '%s.%s' % (year_q, 'lookup'))
   with open(lookup_dest, 'r') as f:
     for line in f.readlines():
@@ -79,7 +133,7 @@ def add_uname_to_lookup(uname, year_q, uname_lookup_by_year_q):
   uname_lookup_by_year_q[year_q][uname] = uname_id
 
 def export_uname_lookup_by_year_q(uname_lookup_by_year_q):
-  lookup_folder = os.path.join(homedir, top_dir, 'uname_lookup')
+  lookup_folder = os.path.join(top_dir, 'uname_lookup')
   for year_q in uname_lookup_by_year_q:
     lookup_dest = os.path.join(lookup_folder, '%s.%s' % (year_q, 'lookup2222'))
     with open(lookup_dest, 'w') as f:
@@ -134,6 +188,8 @@ def get_label_if_thresh(times, sims, med_lookup):
 
 """
 uname --> posix_time --> commit index
+commit index: starts from 0.
+  if this is the student's 10th snapshot, index = 9
 """
 def load_posix_to_commit_ind(output_dir, year_q):
   lookup_dict = {}
@@ -147,3 +203,21 @@ def load_posix_to_commit_ind(output_dir, year_q):
         posix_time = line.split('\t')[1]
         lookup_dict[uname][int(posix_time)] = i
   return lookup_dict
+
+"""
+student --> (midterm, final)
+max midterm score: 120
+max final score: 180
+"""
+def load_exam_grades(output_dir, year_q):
+  grades_dir = os.path.join(output_dir, 'grades')
+  fname = '%s.csv' % year_q
+  if fname not in os.listdir(grades_dir):
+    return {}
+
+  grades_dict = {}
+  with open(os.path.join(grades_dir, fname), 'r') as f:
+    for line in f.readlines():
+      line = line.strip()
+      uname, mt, final = line.split(',')
+      grades_dict[uname] = (mt, final)

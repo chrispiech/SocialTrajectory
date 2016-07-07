@@ -1,11 +1,12 @@
 from helper import *
+top_dir = load_path()
 
-f = open(os.path.join(homedir, top_dir, 'expanded_dir3', 'tmp_doc'), 'r')
+f = open(os.path.join(top_dir, 'expanded_dir3', 'tmp_doc'), 'r')
 lines = f.readlines()
 lines = [line.strip() for line in lines]
 
-dir_2012_1 = os.path.join(homedir, top_dir, 'expanded_dir3', '2012_1')
-dir_all_pairs = os.path.join(homedir, top_dir, 'expanded_dir3', 'all_pairs')
+dir_2012_1 = os.path.join(top_dir, 'expanded_dir3', '2012_1')
+dir_all_pairs = os.path.join(top_dir, 'expanded_dir3', 'all_pairs')
 
 for line in lines:
   dirname, fname = line.split('/')

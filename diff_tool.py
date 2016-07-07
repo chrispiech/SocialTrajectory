@@ -15,7 +15,7 @@ output_diffs_dir = "diffs"
 """
 Called after all_diffs.
 """
-def process_diffs(code_dir, output_dir, year_q):
+def process_diffs(output_dir, year_q):
   plot_diffs(output_dir, year_q)
   #plot_diffs_over_time(output_dir, '2012_1')
   #line_changes(code_dir, output_dir)

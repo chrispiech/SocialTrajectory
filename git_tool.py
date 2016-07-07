@@ -38,7 +38,6 @@ def line_changes(code_dir, target_dir):
   print code_dir
   uname_lookup = load_uname_lookup_by_year_q()
   for student in os.listdir(code_dir):
-    student = 'irvhsu_1'
     student_dir = os.path.join(code_dir, student)
     all_commits = git_log(git_dir=student_dir,
             format_str="%h %ct",
@@ -92,7 +91,6 @@ def line_changes(code_dir, target_dir):
       commit = old_commit
       commit_time = old_commit_time
     print multi_file_commits
-    break
 
 """
 Removes commits from the expanded directory that do not

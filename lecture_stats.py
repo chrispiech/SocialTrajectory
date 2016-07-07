@@ -1,18 +1,10 @@
 from helper import *
 from git_helper import *
-from time import strptime, mktime
-from datetime import datetime
 from moss_tool import *
 import matplotlib.colors as cl
 import matplotlib.cm as cmx
-from pytz import timezone
 
 use_annotate = False
-
-pst = timezone('US/Pacific')
-all_start_time = mktime(datetime(2012,10,15,tzinfo=pst).timetuple())
-all_end_time = mktime(datetime(2012,10,24,15,15,tzinfo=pst).timetuple())
-incr_length = 86400/2
 
 def lecture_plot(output_dir, year_q):
   lecture_year_q = 'lecture_%s' % year_q
@@ -136,8 +128,7 @@ def graph_sims_to_lectures(output_dir, lecture_year_q, top_sims):
   # time axis first
   incr = incr_length
   posix_range = np.arange(all_start_time, all_end_time, step=incr)
-  x_labels = [pst.localize(datetime.fromtimestamp(posix_t)).strftime('%m/%d %H:%M') \
-                      for posix_t in posix_range]
+  x_labels = [posix_to_time(posix_t) for posix_t in posix_range]
 
   # decide colors for similarity
   cm = cmx.get_cmap('Blues')

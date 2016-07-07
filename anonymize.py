@@ -2,10 +2,20 @@ from helper import *
 from git_helper import *
 from time import strptime
 from datetime import date
-from lxml import etree, html
 from moss_tool import *
 from run import *
 import re
+
+"""
+This file shouldn't really be needed anymore.
+
+rawdata still has student names, but upon expanding the rawdata into readable
+git directories, the expanded directory is anonymized. See git_tool.py for more
+information.
+
+For each new year, we should probably modifiy add_uname_to_lookup
+code inside helper.py, but for now everything it's alright.
+"""
 
 def anonymize_all(moss_dir, output_dir, commit_dir, code_dir=None):
   uname_lookup = load_uname_to_id_lookup()
@@ -18,9 +28,11 @@ def anonymize_all(moss_dir, output_dir, commit_dir, code_dir=None):
     print "Anonymizing top_sims for dir %s" % (year_q_dirname)
     #anonymize_top_sims(moss_dir, year_q_dirname, output_dir, uname_lookup)
     #anonymize_all_sims(os.path.join(output_dir, year_q_dirname, 'moss'), uname_lookup)
-    anonymize_stats(os.path.join(output_dir, year_q_dirname, 'stats'), uname_lookup)
+    #anonymize_stats(os.path.join(output_dir, year_q_dirname, 'stats'), uname_lookup)
   if code_dir:
-    anonymize_rawdata(code_dir, uname_lookup)
+    real_grades = os.path.join(code_dir, 'real_grades')
+    anon_grades = os.path.join(code_dir, 'anon_grades')
+    anonymize_grades(real_grades, anon_grades, uname_lookup)
 
   # new_unames = []
   # for year_q_dirname in os.listdir(commit_dir):
@@ -212,3 +224,44 @@ def convert_f_path(other_f, uname_lookup):
   else:
     new_other_f = os.path.join('final_submissions',other_id)
   return new_other_f
+
+def anonymize_grades(real_dir, anon_dir, uname_lookup_orig):
+  # since the uname_lookup table is tagged with the user's submit
+  # count, we make a uname_lookup solely based on user for the grades.
+  uname_lookup = {}
+  for student_commit in uname_lookup_orig:
+    student = student_commit.split('_')[0]
+    uname_lookup[student] = uname_lookup_orig[student_commit]
+
+  # SUNet ID, midterm, final
+  for grade_fname in os.listdir(real_dir):
+    year = grade_fname.split('.')[0][-4:]
+    year_q = '%s_1' % (year)
+    anon_grades = {}
+    tot_students = 0
+    with open(os.path.join(real_dir, grade_fname), 'r') as real_f:
+      print real_f.name
+      line = real_f.readline() # skip header
+      line = real_f.readline()
+      while line:
+        tot_students += 1
+        line = line.strip()
+        student, midterm, final = line.split(',')[:3]
+        line = real_f.readline() # read next line
+
+        if student not in uname_lookup:
+          #print "%s: student %s not available" % (year_q, student)
+          continue
+
+        student_id = uname_lookup[student]
+        if student_id[:4] != year_q[:4]: continue # student retaking
+        anon_grades[student_id] = (midterm, final)
+    print "%s: %s/%s students used" % (year_q, len(anon_grades), tot_students)
+
+    with open(os.path.join(anon_dir, '%s.csv' % year_q), 'w') as anon_f:
+      student_ids = anon_grades.keys()
+      student_ids.sort()
+      anon_f.write('\n'.join(['%s,%s' % (student_id,
+                                ','.join(anon_grades[student_id])) \
+                                    for student_id in student_ids]))
+      print anon_f.name

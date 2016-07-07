@@ -1,19 +1,12 @@
 from helper import *
 from git_helper import *
-from time import strptime, mktime
-from datetime import datetime
 from moss_tool import *
 import matplotlib.colors as cl
 import matplotlib.cm as cmx
-from pytz import timezone
 
 use_annotate = False
 
 add_str = ''
-pst = timezone('US/Pacific')
-start_time = mktime(datetime(2012,10,15,tzinfo=pst).timetuple())
-end_time = mktime(datetime(2012,10,24,15,15,tzinfo=pst).timetuple())
-incr_length = 86400/2 # halftime
 
 def make_moss_graphs(output_dir, year_q, regular=True):
   # (other_username, int(tokens_matched),
@@ -196,8 +189,7 @@ def graph_similarities_over_time(output_dir, year_q, top_sims, sim, time_type, g
   # using days only?
   incr = incr_length
   posix_range = np.arange(start_time, end_time, step=incr)
-  x_labels = [pst.localize(datetime.fromtimestamp(posix_t)).strftime('%m/%d %H:%M') \
-                      for posix_t in posix_range]
+  x_labels = [posix_to_time(posix_t) for posix_t in posix_range]
 
   # make the student graph dir if it doesn't exist
   indiv_output_dir = os.path.join(output_dir, year_q, 'graphs')
@@ -225,7 +217,7 @@ def graph_similarities_over_time(output_dir, year_q, top_sims, sim, time_type, g
     online_bools_sort = online_bools[keep_inds]
     scatter_online = \
       [(sims_sort[i], posix_times_sort[i],
-          i, datetime.fromtimestamp(posix_times_sort[i]).strftime('%m/%d %H:%M'))\
+          i, posix_to_time(posix_times_sort[i])) \
         for i in range(len(posix_times_sort)) \
         if online_bools_sort[i]]
     if scatter_online: # instead of online_sims, in case the online part happened before time_002.
@@ -393,8 +385,7 @@ def graph_all_similarities(output_dir, year_q, top_sims, sim, time_type, same_pl
   incr = incr_length
   posix_range = np.arange(start_time, end_time, step=incr)
   sim_min, sim_max = np.percentile(all_sims_np, [0,100])
-  x_labels = [pst.localize(datetime.fromtimestamp(posix_t)).strftime('%m/%d %H:%M') \
-                      for posix_t in posix_range]
+  x_labels = [posix_to_time(posix_t) for posix_t in posix_range]
   print x_labels
 
   # create the figure handles for the all student graphs
@@ -443,12 +434,12 @@ def graph_all_similarities(output_dir, year_q, top_sims, sim, time_type, same_pl
     # online/offline
     scatter_online = \
       [(sims_sort[i], posix_times_sort[i],
-          i, datetime.fromtimestamp(posix_times_sort[i]).strftime('%m/%d %H:%M'))\
+          i, posix_to_time(posix_times_sort[i]))\
         for i in range(len(posix_times_sort)) \
         if online_bools_sort[i]]
     scatter_offline = \
       [(sims_sort[i], posix_times_sort[i],
-          i, datetime.fromtimestamp(posix_times_sort[i]).strftime('%m/%d %H:%M'))\
+          i, posix_to_time(posix_times_sort[i]))\
         for i in range(len(posix_times_sort)) \
         if not online_bools_sort[i]]
     if scatter_online: # instead of online_sims, in case the online part happened before time_002.
@@ -611,8 +602,7 @@ def graph_moss_all_student(all_sims, y_labels, output_dir, year_q):
     xlims = ax1.get_xlim()
     incr = (xlims[1] - xlims[0])/10
     posix_range = np.arange(xlims[0], xlims[1], step=incr)
-    x_labels = [pst.localize(datetime.fromtimestamp(posix_t)).strftime('%m/%d %H:%M') \
-                    for posix_t in posix_range]
+    x_labels = [posix_to_time(posix_t) for posix_t in posix_range]
     xtickNames = plt.setp(ax1, xticklabels=x_labels)
     plt.setp(xtickNames, rotation=45, fontsize=8)
 
@@ -672,8 +662,7 @@ def graph_aggr_top_moss(top_sims, y_labels, output_dir, year_q):
   xlims = ax1.get_xlim()
   incr = (xlims[1] - xlims[0])/10
   posix_range = np.linspace(xlims[0], xlims[1], 10)
-  x_labels = [pst.localize(datetime.fromtimestamp(posix_t)).strftime('%m/%d %H:%M') \
-                  for posix_t in posix_range]
+  x_labels = [posix_to_time(posix_t) for posix_t in posix_range]
   xtickNames = plt.setp(ax1, xticklabels=x_labels)
   plt.setp(xtickNames, rotation=45, fontsize=8)
 
@@ -754,11 +743,9 @@ def make_moss_pair_graphs(output_dir, pair, pair_prefix):
   start_2, end_2 = min(posix_lookup[uname_2].keys()), max(posix_lookup[uname_2].keys())
   incr = incr_length
   posix_range_1 = np.arange(start_1, end_1, step=incr)
-  x_labels = [pst.localize(datetime.fromtimestamp(posix_t)).strftime('%m/%d %H:%M') \
-                for posix_t in posix_range_1]
+  x_labels = [posix_to_time(posix_t) for posix_t in posix_range_1]
   posix_range_2 = np.arange(start_2, end_2, step=incr)
-  y_labels = [pst.localize(datetime.fromtimestamp(posix_t)).strftime('%m/%d %H:%M') \
-                for posix_t in posix_range_2]
+  y_labels = [posix_to_time(posix_t) for posix_t in posix_range_2]
   ax_all[0].xaxis.set_ticks(posix_range_1)
   xtickNames = plt.setp(ax_all[0], xticklabels=x_labels)
   plt.setp(xtickNames, rotation=45, fontsize=8)

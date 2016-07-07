@@ -10,29 +10,34 @@ from diff_tool import *
 from lecture_stats import *
 import random
 
-use_sample = False
-CODE_DIR_NAME = os.path.join("rawdata", "dir3")
-#CODE_DIR_NAME = os.path.join("rawdata", "dir_mass")
-if use_sample: CODE_DIR_NAME = os.path.join("sampledata")
-CODE_DIR = os.path.join(homedir, top_dir, CODE_DIR_NAME)
+top_dir = load_path() # from helper.py
+
+CODE_DIR_NAME = "rawdata"
+CODE_DIR = os.path.join(top_dir, CODE_DIR_NAME)
 
 # for making a holdout set
 EXPT_DIR = os.path.join("rawdata", "dir_mass")
 HOLDOUT_DIR = os.path.join("rawdata", "dir_holdout")
 
 COMMIT_DIR_NAME = "expanded_dir3"
-if use_sample: COMMIT_DIR_NAME = "expanded_sampledata"
-COMMIT_DIR = os.path.join(homedir, top_dir, COMMIT_DIR_NAME)
+COMMIT_DIR = os.path.join(top_dir, COMMIT_DIR_NAME)
+
+# final submissions and all known online versions
 FINAL_SUBMISSIONS_DIR_NAME = "final_submissions"
 FINAL_SUBMISSIONS_DIR = os.path.join(COMMIT_DIR, FINAL_SUBMISSIONS_DIR_NAME)
-ONLINE_DIR_NAME = "online" # all known online versions
+ONLINE_DIR_NAME = "online"
 ONLINE_DIR = os.path.join(COMMIT_DIR, ONLINE_DIR_NAME)
 
-# output after processing all commits
+# the most important directory ever
 OUTPUT_DIR_NAME = "proc_output"
-OUTPUT_DIR = os.path.join(homedir, top_dir, OUTPUT_DIR_NAME)
+OUTPUT_DIR = os.path.join(top_dir, OUTPUT_DIR_NAME)
 
+# for moss
 MOSS_OUTPUT_TOP_DIR = "moss_output"
+
+# for grades
+GRADE_DIR_NAME = "anon_grades"
+GRADE_DIR = os.path.join(OUTPUT_DIR, GRADE_DIR_NAME)
 
 """
 Expands all commits.
@@ -64,8 +69,6 @@ def moss(moss_dir, output_dir, final_submissions_dir):
       int(year), int(q)
     except: continue
     print "Processing moss output for dir %s" % (year_q_dirname)
-    if use_sample:
-      if year_q_dirname == "2012_1": print "ignoring 2012"; continue
     #moss_process(moss_dir, year_q_dirname, output_dir, final_submissions_dir)
     make_moss_graphs(output_dir, year_q_dirname)
     #create_gephi(output_dir, year_q_dirname)
@@ -87,8 +90,6 @@ def gephi(moss_dir, output_dir):
       int(year), int(q)
     except: continue
     print "Making gephi csv for dir %s" % (year_q_dirname)
-    if use_sample:
-      if year_q_dirname == "2012_1": print "ignoring 2012"; continue
     create_gephi(output_dir, year_q_dirname)
 
 def tokenize(commit_dir, output_dir):
@@ -123,7 +124,8 @@ def probs(commit_dir, output_dir):
     #threshold_check(output_dir, year_q_dirname)
 
 def anonymize(moss_dir, output_dir, commit_dir):
-  anonymize_all(moss_dir, output_dir, commit_dir)
+  #anonymize_all(moss_dir, output_dir, commit_dir)
+  anonymize_all(moss_dir, output_dir, commit_dir, code_dir=CODE_DIR)
 
 def make_holdout(code_dir, holdout_dir, expt_dir, n=400):
   unique_unames = get_unique_unames(code_dir)
@@ -161,8 +163,8 @@ if __name__ == "__main__":
   #graph_general(CODE_DIR, OUTPUT_DIR)
   #make_holdout(CODE_DIR, HOLDOUT_DIR, EXPT_DIR)
   #anonymize(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, COMMIT_DIR)
-  moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
-  #lecture(OUTPUT_DIR)
+  #moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
+  lecture(OUTPUT_DIR)
   #gephi(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR)
   #tokenize(COMMIT_DIR, OUTPUT_DIR)
   #probs(COMMIT_DIR, OUTPUT_DIR)

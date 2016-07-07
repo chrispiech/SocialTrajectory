@@ -2,10 +2,8 @@ from helper import *
 from git_helper import *
 from time import strptime
 from datetime import date
-from lxml import etree, html
 
 output_moss_dir = "moss"
-add_str = ''
 """
 Overall moss processing function.
 """
@@ -24,38 +22,6 @@ def get_all_output_f(all_sims):
       for full_f in commit_output_f:
         all_output_f.add(get_uname_from_f(full_f))
   return all_output_f
-
-def load_top_sims_from_log(output_dir, year_q):
-  top_sim_path = os.path.join(output_dir, "%s_top_sim%s.csv" % (year_q, add_str))
-  top_sims = {}
-  print ">>>>>>>>%s" % top_sim_path
-  with open(top_sim_path, 'r') as f:
-    line = f.readline()
-    uname = ''
-    while line:
-      line = line.strip()
-      if not line:
-        uname = ''
-      else:
-        line_commas = line.split(',')
-        if len(line_commas) == 1:
-          if uname: print "Error: uname already assigned"
-          uname = line
-          if uname not in top_sims:
-            top_sims[uname] = {}
-        else:
-          # own_commit, other_f_path, other_f_html, tokens_matched,
-          #       percent_self, percent_other
-          _, posix_time, commit_hash = line_commas[0].split('_')
-          #posix_time, commit_hash = line_commas[0].split('_')[-2:]
-          other_f_path, other_f_html, tokens_matched, \
-            percent_self, percent_other, commit_num, posix_t_2 = line_commas[1:]
-          top_sims[uname][posix_time] = \
-            (get_uname_from_f(other_f_path), int(tokens_matched),
-                      float(percent_self), float(percent_other),
-                      int(commit_num), commit_hash)
-      line = f.readline()
-  return top_sims
 
 #other_f_path, other_f_html, tokens_matched, percent_self, percent_other 
 def load_all_sims_from_log(output_dir, year_q):
