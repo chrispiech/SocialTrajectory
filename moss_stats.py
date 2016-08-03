@@ -24,24 +24,46 @@ def make_moss_graphs(output_dir, year_q, regular=True):
   same_plot = True
   regular = True # graphing lecture code similarities
   # by commit
-  thresh_unames_percent_commit = graph_all_similarities(output_dir, year_q, top_sims, 'percent', 'commit', same_plot)
-  thresh_unames_token_commit = graph_all_similarities(output_dir, year_q, top_sims, 'token', 'commit', same_plot)
-  if regular:
-    print "intersection of percent v commit and token v commit:"
-    commit_intersect, commit_all_dict = intersect_uname_thresh(thresh_unames_percent_commit, thresh_unames_token_commit, printout=True)
-  else:
-    commit_intersect, commit_all_dict = intersect_uname_thresh(thresh_unames_percent_commit, thresh_unames_token_commit)
+  graph_options = list(itertools.product((True, False), (False, True),
+              (True, False), (True, False)))
+  for normalize_flag, use_grades, use_mt, rank in graph_options:
+    print "norm flag: %s, use_grades: %s, use_mt: %s, rank: %s" % (normalize_flag, use_grades, use_mt, rank)
+    thresh_unames_percent_commit = graph_all_similarities(output_dir, year_q, top_sims,
+                                      'percent', 'commit', same_plot,
+                                      normalize_flag=normalize_flag, use_grades=use_grades,
+                                      use_mt=use_mt, rank=rank)
+    thresh_unames_token_commit = graph_all_similarities(output_dir, year_q, top_sims,
+                                      'token', 'commit', same_plot,
+                                      normalize_flag=normalize_flag, use_grades=use_grades,
+                                      use_mt=use_mt, rank=rank)
+    if regular:
+      print "intersection of percent v commit and token v commit:"
+      commit_intersect, commit_all_dict = intersect_uname_thresh(thresh_unames_percent_commit, thresh_unames_token_commit, printout=True)
+    else:
+      commit_intersect, commit_all_dict = intersect_uname_thresh(thresh_unames_percent_commit, thresh_unames_token_commit)
 
-  # by posix
-  if regular:
-    thresh_unames_percent_posix = graph_all_similarities(output_dir, year_q, top_sims, 'percent', 'posix', same_plot)
-    thresh_unames_token_posix = graph_all_similarities(output_dir, year_q, top_sims, 'token', 'posix', same_plot)
-    print "intersection of percent v posix and token v posix:"
-    intersect_uname_thresh(thresh_unames_percent_posix, thresh_unames_token_posix, printout=True)
-  else:
-    thresh_unames_percent_posix = graph_all_similarities(output_dir, year_q, top_sims, 'percent', 'posix', same_plot, commit_intersect)
-    thresh_unames_token_posix = graph_all_similarities(output_dir, year_q, top_sims, 'token', 'posix', same_plot, commit_intersect)
-    intersect_uname_thresh(thresh_unames_percent_posix, thresh_unames_token_posix)
+    # by posix
+    if regular:
+      thresh_unames_percent_posix = graph_all_similarities(output_dir, year_q, top_sims,
+                                      'percent', 'posix', same_plot,
+                                      normalize_flag=normalize_flag, use_grades=use_grades,
+                                      use_mt=use_mt, rank=rank)
+      thresh_unames_token_posix = graph_all_similarities(output_dir, year_q, top_sims,
+                                      'token', 'posix', same_plot,
+                                      normalize_flag=normalize_flag, use_grades=use_grades,
+                                      use_mt=use_mt, rank=rank)
+      print "intersection of percent v posix and token v posix:"
+      intersect_uname_thresh(thresh_unames_percent_posix, thresh_unames_token_posix, printout=True)
+    else:
+      thresh_unames_percent_posix = graph_all_similarities(output_dir, year_q, top_sims,
+                                      'percent', 'posix', same_plot, commit_intersect,
+                                      normalize_flag=normalize_flag, use_grades=use_grades,
+                                      use_mt=use_mt, rank=rank)
+      thresh_unames_token_posix = graph_all_similarities(output_dir, year_q, top_sims,
+                                      'token', 'posix', same_plot, commit_intersect,
+                                      normalize_flag=normalize_flag, use_grades=use_grades,
+                                      use_mt=use_mt, rank=rank)
+      intersect_uname_thresh(thresh_unames_percent_posix, thresh_unames_token_posix)
 
 def intersect_uname_thresh(uname_thresh_1, uname_thresh_2, printout=False):
   # uname_thresh: (uname, percentage)
@@ -127,7 +149,7 @@ def graph_percent_vs_token(output_dir, year_q, top_sims):
   
   fig = plt.figure()
   ax1 = plt.gca()
-  plt.rcParams['image.cmap'] = 'gray'
+  #plt.rcParams['image.cmap'] = 'gray'
   sc = plt.scatter(tokens, percents, c=posix_times_adj, edgecolors='none')
 
   xlims = ax1.get_xlim()
@@ -188,7 +210,7 @@ def graph_similarities_over_time(output_dir, year_q, top_sims, sim, time_type, g
   posix_range = np.arange(time_002, time_100, step=incr)
   # using days only?
   incr = incr_length
-  posix_range = np.arange(start_time, end_time, step=incr)
+  posix_range = np.arange(all_start_time, all_end_time, step=incr)
   x_labels = [posix_to_time(posix_t) for posix_t in posix_range]
 
   # make the student graph dir if it doesn't exist
@@ -211,7 +233,7 @@ def graph_similarities_over_time(output_dir, year_q, top_sims, sim, time_type, g
     sims = time_array[:,1]
     online_bools = time_array[:,2].astype(bool)
     keep_inds = posix_times >= time_002 # cut off graph a bit
-    keep_inds = posix_times >= start_time # cut off graph a bit
+    keep_inds = posix_times >= all_start_time # cut off graph a bit
     posix_times_sort = posix_times[keep_inds]
     sims_sort = sims[keep_inds]
     online_bools_sort = online_bools[keep_inds]
@@ -334,7 +356,10 @@ Also graph a threshold indicating 95th or 99th percentile (specify this in
 
 Returns all usernames that are labeled, in thresh_unames (with the threshold).
 """
-def graph_all_similarities(output_dir, year_q, top_sims, sim, time_type, same_plot=False, only_names=None):
+def graph_all_similarities(output_dir, year_q, top_sims, sim, time_type,
+            same_plot=False, only_names=None,
+            use_grades=True, use_mt=False, rank=False,
+            normalize_flag=False):
   print "%s: Similarities by %s over %s, scatter all on one graph" % (year_q, sim, time_type)
   all_timeseries = {}
   all_times_sims = []
@@ -342,6 +367,14 @@ def graph_all_similarities(output_dir, year_q, top_sims, sim, time_type, same_pl
     only_names = set(only_names)
   else:
     only_names = set()
+  # change snapshot times to value between 0 to 1 (% completion)
+  norm_gran = 3 # decimal granularity
+  
+  exam_grades = load_exam_grades(output_dir, year_q)
+  if use_mt:
+    graderanks, _ = get_graderank_dict(exam_grades)
+  else:
+    _, graderanks = get_graderank_dict(exam_grades)
 
   # parse all top sims and get data
   if sim is 'token': sim_ind = 1
@@ -351,9 +384,22 @@ def graph_all_similarities(output_dir, year_q, top_sims, sim, time_type, same_pl
   for uname in top_sims:
     posix_times = top_sims[uname].keys()
     posix_times.sort()
+    commit_inds = np.arange(len(posix_times)).astype(float)
+    if normalize_flag:
+      commit_inds = np.around(commit_inds/len(posix_times), decimals=norm_gran)
+    grade = 1.0 # doesn't matter
+    if uname not in graderanks:
+      if use_grades: continue
+    else:
+      if not rank: # (abs_grade, rank) in that order
+        grade = graderanks[uname][0]
+      else:
+        grade = graderanks[uname][1]
     temp_list = [(int(posix_times[i]),
-                  top_sims[uname][posix_times[i]][sim_ind],
-                 int('online' in top_sims[uname][posix_times[i]][0]), i) \
+                 top_sims[uname][posix_times[i]][sim_ind],
+                 int('online' in top_sims[uname][posix_times[i]][0]),
+                 commit_inds[i],
+                 grade) \
           for i in range(len(posix_times))]
           #for posix_time in top_sims[uname]]
     max_commits = max(max_commits, len(temp_list))
@@ -383,7 +429,7 @@ def graph_all_similarities(output_dir, year_q, top_sims, sim, time_type, same_pl
   posix_range = np.arange(time_002, time_100, step=incr)
   # using days only?
   incr = incr_length
-  posix_range = np.arange(start_time, end_time, step=incr)
+  posix_range = np.arange(all_start_time, all_end_time, step=incr)
   sim_min, sim_max = np.percentile(all_sims_np, [0,100])
   x_labels = [posix_to_time(posix_t) for posix_t in posix_range]
   print x_labels
@@ -398,21 +444,30 @@ def graph_all_similarities(output_dir, year_q, top_sims, sim, time_type, same_pl
     ax_all[plt_ind] = plt.gca()
     points_all[plt_ind] = []
     if same_plot: break
+  m = set_colormap([0.0, 1.0]) # for coloring
 
   #### graph all students
   thresh_unames = []
   uname_ind = 0
+  online_list = []
+  offline_list = []
   for uname in all_timeseries:
     if uname_ind % 50 == 1: print uname_ind
     other_names, time_array = all_timeseries[uname]
     posix_times = time_array[:,0]
     sims = time_array[:,1]
     online_bools = time_array[:,2].astype(bool)
+    grades = time_array[:,4] # commit length is 3
     keep_inds = posix_times >= time_002 # cut off graph a bit
-    keep_inds = posix_times >= start_time # use start_time
+    keep_inds = posix_times >= all_start_time # use start_time
     posix_times_sort = posix_times[keep_inds]
     sims_sort = sims[keep_inds]
     online_bools_sort = online_bools[keep_inds]
+    commit_inds_sort = np.arange(len(posix_times_sort)).astype(float)
+    grades_sort = grades[keep_inds]
+    if normalize_flag:
+      commit_inds_sort = np.around(commit_inds_sort/len(posix_times_sort),
+                                   decimals=norm_gran)
 
     if len(sims_sort) == 0:
       print "%s has no moss after %s" % (uname, x_labels[0])
@@ -420,7 +475,6 @@ def graph_all_similarities(output_dir, year_q, top_sims, sim, time_type, same_pl
     
     # check if name should be different color
     highlight_flag = False
-    online_c, offline_c = 'r', 'b'
     highlight_c = 'k'
     if only_names:
       if uname[6:] in only_names:
@@ -434,18 +488,24 @@ def graph_all_similarities(output_dir, year_q, top_sims, sim, time_type, same_pl
     # online/offline
     scatter_online = \
       [(sims_sort[i], posix_times_sort[i],
-          i, posix_to_time(posix_times_sort[i]))\
+          commit_inds_sort[i], posix_to_time(posix_times_sort[i]),
+          grades_sort[i])\
         for i in range(len(posix_times_sort)) \
         if online_bools_sort[i]]
     scatter_offline = \
       [(sims_sort[i], posix_times_sort[i],
-          i, posix_to_time(posix_times_sort[i]))\
+          commit_inds_sort[i], posix_to_time(posix_times_sort[i]),
+          grades_sort[i])\
         for i in range(len(posix_times_sort)) \
         if not online_bools_sort[i]]
+    online_c, offline_c = 'r', 'b'
+    on_c, off_c = online_c, offline_c # colors to graph circles
     if scatter_online: # instead of online_sims, in case the online part happened before time_002.
-      sims_online, posix_online, commits_online, date_times = zip(*scatter_online)
+      sims_online, posix_online, commits_online, _, grades_online = zip(*scatter_online)
+      if use_grades: on_c = m.to_rgba(grades_online)
     if scatter_offline:
-      sims_offline, posix_offline, commits_offline, date_times = zip(*scatter_offline)
+      sims_offline, posix_offline, commits_offline, _, grades_offline = zip(*scatter_offline)
+      if use_grades: off_c = m.to_rgba(grades_offline)
 
     # all student plot
     plt_ind = uname_ind/100
@@ -455,40 +515,41 @@ def graph_all_similarities(output_dir, year_q, top_sims, sim, time_type, same_pl
     fig_all[plt_ind].hold(True)
     ax_std = ax_all[plt_ind]
     points_std = points_all[plt_ind]
+
     if time_type is 'posix':
       max_posix, max_sim, thresh_perc = get_label_if_thresh(posix_times_sort, sims_sort, med_lookup)
       if max_sim != -1:
         thresh_unames.append((uname[6:], thresh_perc))
         if use_annotate:
           ax_std.annotate(uname[6:], xy=(max_posix, max_sim), size=10, textcoords='data')
-      if scatter_online:
-        if highlight_flag:
-          ax_std.scatter(posix_online, sims_online, marker='o',c=highlight_c)
-        ax_std.scatter(posix_online, sims_online, marker='.',c=online_c,lw = 0)
+      if scatter_online: # outline the online
+        #ax_std.scatter(posix_online, sims_online, marker='o', edgecolors='k', facecolors=on_c,s=30)
+        online_list.append((posix_online, sims_online, on_c))
       if scatter_offline:
-        if highlight_flag:
-          ax_std.scatter(posix_offline, sims_offline, c=highlight_c, lw=0, alpha=0.2)
-        else:
-          ax_std.scatter(posix_offline, sims_offline, c=offline_c, lw=0, alpha=0.08)
+        #ax_std.scatter(posix_offline, sims_offline, c=off_c, lw=0, alpha=0.3)
+        offline_list.append((posix_offline, sims_offline, off_c))
       points_std.append([posix_times_sort, sims_sort])
     elif time_type is 'commit':
-      max_ind, max_sim, thresh_perc = get_label_if_thresh(range(len(sims_sort)), sims_sort, med_lookup)
+      max_ind, max_sim, thresh_perc = get_label_if_thresh(commit_inds_sort, sims_sort, med_lookup)
       if max_sim != -1:
         thresh_unames.append((uname[6:], thresh_perc))
         if use_annotate:
           ax_std.annotate(uname[6:], xy=(max_ind, max_sim), size=10, textcoords='data')
-      if scatter_online:
-        if highlight_flag:
-          ax_std.scatter(commits_online, sims_online, marker='o', c=highlight_c)
-        ax_std.scatter(commits_online, sims_online, c=online_c, lw=0)
+      if scatter_online: # outline the online
+        #ax_std.scatter(commits_online, sims_online, marker='o', edgecolors='k', facecolors=on_c,s=30)
+        online_list.append((commits_online, sims_online, on_c))
       if scatter_offline:
-        if highlight_flag:
-          ax_std.scatter(commits_offline, sims_offline,lw=0,c=highlight_c, alpha=0.2)
-        else:
-          ax_std.scatter(commits_offline, sims_offline, marker='.',c=offline_c, lw=0,alpha=0.08)
+        #ax_std.scatter(commits_offline, sims_offline, marker='.',color=off_c, lw=0,alpha=0.3)
+        offline_list.append((commits_offline, sims_offline, off_c))
       points_std.append([range(len(sims_sort)), sims_sort])
 
     uname_ind += 1
+
+  # plot all offline first, then online
+  for time_x, sim_y, c in offline_list:
+    ax_std.scatter(time_x, sim_y, marker='.', color=c, lw=0, alpha=0.3)
+  for time_x, sim_y, c in online_list:
+    ax_std.scatter(time_x, sim_y, marker='o', color=c, s=30)
 
   # format and save all student plots
   title_str = '%s top similarity (%s) over %s' % (year_q, sim, time_type)
@@ -502,9 +563,24 @@ def graph_all_similarities(output_dir, year_q, top_sims, sim, time_type, same_pl
       pass
   elif time_type is 'commit':
     title_str = '%s [%s max commits]' % (title_str, max_commits)
+  if use_grades:
+    exam_str = 'MT' if use_mt else 'Final'
+    rank_str = 'Rankings' if rank else 'Absolute'
+    title_str = '%s (with %s %s grades)' % (title_str, rank_str, exam_str)
   all_fig_dest_prefix = '%s_aggr_%s_%s' % (year_q, time_type, sim)
+  if normalize_flag and time_type is 'commit':
+    all_fig_dest_prefix = '%s_%s' % (all_fig_dest_prefix, 'norm')
   if sim is 'token':
     all_fig_dest_prefix += '_%s_%s' % (sim_min, sim_max)
+  if use_grades:
+    if use_mt:
+      all_fig_dest_prefix += '_%s' % 'MT'
+    else:
+      all_fig_dest_prefix += '_%s' % 'Final'
+    if rank:
+      all_fig_dest_prefix += '_%s' % 'rank'
+    else:
+      all_fig_dest_prefix += '_%s' % 'abs'
 
   for plt_ind in range(num_unames/100+1):
     plt.figure(plt_ind)
@@ -516,23 +592,33 @@ def graph_all_similarities(output_dir, year_q, top_sims, sim, time_type, same_pl
     if time_type is 'posix':
       #ax_std.set_xlim(time_002, time_100)
       # use start times
-      print "setting times", start_time, end_time
-      ax_std.set_xlim(start_time, end_time)
+      print "setting times", all_start_time, all_end_time
+      ax_std.set_xlim(all_start_time, all_end_time)
       ax_std.xaxis.set_ticks(posix_range)
       xtickNames = plt.setp(ax_std, xticklabels=x_labels)
       plt.setp(xtickNames, rotation=45, fontsize=8)
       #ax_std.plot(med_times[::5], med_sims[::5], c='k')
     elif time_type is 'commit':
-      ax_std.set_xlim(0, max_commits)
+      if normalize_flag:
+        ax_std.set_xlim(0, 1.0)
+      else:
+        ax_std.set_xlim(0, max_commits)
       ax_std.plot(med_times, med_sims, c='k')
 
     plt.figure(plt_ind)
+    if use_grades:
+      fig_all[plt_ind].tight_layout()
+      cbar_ax = fig_all[plt_ind].add_axes([0.95, 0.07, 0.02, 0.8])
+      cbar_ax.tick_params()#labelsize=tick_fs)
+      fig_all[plt_ind].colorbar(m, cax=cbar_ax)
     title_str_ind = '%s (Part %s)' % (title_str, plt_ind)
     if same_plot:
       #title_str_ind = '%s (all)' % (title_str)
       title_str_ind = '%s' % (title_str)
     ax_all[plt_ind].set_title(title_str_ind)
     ax_all[plt_ind].set_xlabel(time_type)
+    if normalize_flag and time_type is 'commit':
+      ax_all[plt_ind].set_xlabel('commit (normalized)')
     ax_all[plt_ind].set_ylabel(sim)
     all_fig_dest_ind = os.path.join(output_dir,
               '%s_%s.png' % (all_fig_dest_prefix, plt_ind))
@@ -586,7 +672,7 @@ def graph_moss_all_student(all_sims, y_labels, output_dir, year_q):
     ax1 = plt.gca()
     marker_size = 100
     print "Graphing scatter."
-    plt.rcParams['image.cmap'] = 'gray'
+    #plt.rcParams['image.cmap'] = 'gray'
     sc = plt.scatter(x_scatter, y_scatter, marker_size, c=z_cs)
     plt.colorbar()
 

@@ -24,6 +24,7 @@ LECTURE_DIR_NAME = "lecture"
 LECTURE_DIR = os.path.join(TARGET_DIR, LECTURE_DIR_NAME)
 ONLINE_DIR_NAME = "online" # all known online versions
 ONLINE_DIR = os.path.join(TARGET_DIR, ONLINE_DIR_NAME)
+NOONLINE_DIR_NAME = "noonline"
 
 STARTER_DIR_NAME = "STARTER"
 
@@ -327,6 +328,93 @@ def multi_moss(TARGET_DIR, CURRENT_Q,
     count -= 1
     if count == 0: break
 
+def multi_moss_diff(TARGET_DIR, CURRENT_Q,
+                FINAL_SUBMISSIONS_DIR_NAME,
+                ONLINE_DIR_NAME,
+                STARTER_DIR_NAME,
+                MOSS_OUTPUT_DIR):
+  # make temp dir in base_dir
+  # for each dir in target_dir, add to temp
+  # once directory is generated, move to moss_output_dir
+  if not os.path.exists(os.path.join(MOSS_OUTPUT_DIR, CURRENT_Q)):
+    os.makedirs(os.path.join(MOSS_OUTPUT_DIR, CURRENT_Q))
+
+  cwd = os.getcwd()
+  print("in dir", TARGET_DIR)
+
+  # make final dir that only has current q, just for 2012_1 analysis
+  diff_current_q_dir = 'diff_%s' % (CURRENT_Q)
+  insert_dir = os.path.join(diff_current_q_dir, 'insert')
+  delete_dir = os.path.join(diff_current_q_dir, 'delete')
+  current_q = diff_current_q_dir
+  if not os.path.exists(os.path.join(MOSS_OUTPUT_DIR, current_q)):
+    os.makedirs(os.path.join(MOSS_OUTPUT_DIR, current_q))
+
+  cwd = os.getcwd()
+  os.chdir(TARGET_DIR)
+  print("in dir", TARGET_DIR)
+
+  TEMP_DIR_NAME = "temp_diff"
+  count = -1 # run all of them
+  commit_tot = len(os.listdir(insert_dir))
+  commit_count = 0
+
+  lines_thresh = 10
+  for diff_dir in [insert_dir, delete_dir]:
+    for commit in os.listdir(diff_dir):
+      print("%d/%d" % (commit_count, commit_tot),
+            "starting moss for commit", commit)
+      commit_count += 1
+      line_tot = len(os.listdir(os.path.join(diff_dir, commit)))
+      line_count = 0
+      top_commit_moss_dir = os.path.join(MOSS_OUTPUT_DIR, diff_dir, commit)
+      if not os.path.exists(top_commit_moss_dir):
+        os.makedirs(top_commit_moss_dir)
+      for line in os.listdir(os.path.join(diff_dir, commit)):
+        line_count += 1
+        start_i, end_i = map(int, line.split('_'))
+        if end_i - start_i + 1 <= lines_thresh:
+          print("\t%d/%d" % (line_count, line_tot),
+                "skipping lines %s" % line)
+          continue
+        print("\t%d/%d" % (line_count, line_tot),
+                "starting moss for commit %s, lines %s" % (commit, line))
+        commit_temp_dir = os.path.join(TEMP_DIR_NAME, '%s_%s' % (commit, line))
+        commit_moss_dir = os.path.join(top_commit_moss_dir, line)
+        if os.path.exists(commit_moss_dir):
+          print("commit already processed")
+          continue
+        if not os.path.exists(commit_temp_dir):
+          os.makedirs(commit_temp_dir)
+        cp_cmd = "cp %s/%s %s/%s.java" % \
+            (os.path.join(diff_dir, commit), line, commit_temp_dir, line)
+        call_cmd(cp_cmd)
+
+        # make basically no threshold
+        m = pymoss.Runner(filetype, threshold=10 ** 9)
+        try:
+          m.add(STARTER_DIR_NAME, pymoss.util.STARTER)
+          m.add_all('final_submissions_%s' % CURRENT_Q, pymoss.util.ARCHIVE)
+          m.add_all(ONLINE_DIR_NAME, pymoss.util.ARCHIVE)
+          m.add_all(TEMP_DIR_NAME, prefix="")
+          print("hi",os.listdir(TEMP_DIR_NAME))
+
+          m.run()
+          h = pymoss.Html(m, "%s" % commit)
+          moss_dir = (h.gen_all('output_diff')).split('/')[-1]
+          mv_cmd = "mv %s %s" % (os.path.join(cwd, moss_dir), commit_moss_dir)
+          print(os.listdir(os.path.join(cwd, moss_dir)))
+          print(mv_cmd)
+          print("moving moss output to", commit_moss_dir)
+          call_cmd(mv_cmd)
+          print("after move", os.listdir(commit_moss_dir))
+        finally: m.cleanup()
+
+        rm_cmd = "rm -r %s" % (os.path.join(TARGET_DIR,commit_temp_dir))
+        call_cmd(rm_cmd)
+      count -= 1
+      if count == 0: break
+
 def multi_moss_lecture(TARGET_DIR, CURRENT_Q,
                 LECTURE_DIR_NAME,
                 ONLINE_DIR_NAME,
@@ -389,11 +477,105 @@ def multi_moss_lecture(TARGET_DIR, CURRENT_Q,
     count -= 1
     if count == 0: break
 
+def multi_moss_noonline(TARGET_DIR, CURRENT_Q,
+                FINAL_SUBMISSIONS_DIR_NAME,
+                ONLINE_DIR_NAME,
+                STARTER_DIR_NAME,
+                MOSS_OUTPUT_DIR):
+  # make temp dir in base_dir
+  # for each dir in target_dir, add to temp
+  # once directory is generated, move to moss_output_dir
+  if not os.path.exists(os.path.join(MOSS_OUTPUT_DIR, CURRENT_Q)):
+    os.makedirs(os.path.join(MOSS_OUTPUT_DIR, CURRENT_Q))
+  # make current q also have no online prefix
+  current_q = '%s_%s' % (NOONLINE_DIR_NAME, CURRENT_Q)
+
+  cwd = os.getcwd()
+  os.chdir(TARGET_DIR)
+  print("in dir", TARGET_DIR)
+
+  # make final dir that only has current q, just for 2012_1 analysis
+  final_current_q_dir = ''
+  final_current_q_dir = '%s_%s' % (FINAL_SUBMISSIONS_DIR_NAME, CURRENT_Q)
+  print("Making current_q-only final submission dir.")
+  if not os.path.exists(os.path.join(final_current_q_dir)):
+    os.makedirs(os.path.join(final_current_q_dir))
+    year, q = CURRENT_Q.split('_')
+    current_q_str = '%s%02d' % (year, int(q))
+    print(current_q_str)
+    final_current_q_subs = filter(lambda d: d[:6] == current_q_str,
+                            os.listdir(FINAL_SUBMISSIONS_DIR))
+    for final_sub in final_current_q_subs:
+      ln_cmd = 'ln -s %s %s' % (os.path.join(FINAL_SUBMISSIONS_DIR, final_sub),
+                                os.path.join(final_current_q_dir, final_sub))
+      call_cmd(ln_cmd)
+
+  TEMP_DIR_NAME = "temp_noonline"
+  count = -1 # run all of them
+  commit_tot = len(os.listdir(CURRENT_Q))
+  commit_count = 0
+  for commit in os.listdir(CURRENT_Q):
+    commit_count += 1
+    print("%d/%d" % (commit_count, commit_tot),
+          "starting moss for commit", commit)
+    all_files = ''.join(os.listdir(os.path.join(CURRENT_Q, commit)))
+    if filetype not in all_files:
+      print("skipping dir %s (no %s files)" % (commit, filetype))
+      continue
+    commit_temp_dir = os.path.join(TEMP_DIR_NAME, commit)
+
+    # no online moss dir
+    commit_moss_dir = os.path.join(MOSS_OUTPUT_DIR, current_q, commit)
+    if os.path.exists(commit_moss_dir):
+      print("commit already processed")
+      continue
+    if not os.path.exists(commit_temp_dir):
+      os.makedirs(commit_temp_dir)
+    cp_cmd = "cp -r %s/* %s" % (os.path.join(CURRENT_Q, commit),
+                                os.path.join(commit_temp_dir))
+    call_cmd(cp_cmd)
+
+    # make basically no threshold
+    m = pymoss.Runner(filetype, threshold=10 ** 9)
+    try:
+      m.add(STARTER_DIR_NAME, pymoss.util.STARTER)
+      m.add_all(TEMP_DIR_NAME, prefix="")
+      if final_current_q_dir:
+        m.add_all(final_current_q_dir, pymoss.util.ARCHIVE)
+      else:
+        m.add_all(FINAL_SUBMISSIONS_DIR_NAME, pymoss.util.ARCHIVE)
+
+      # add online code as starter code
+      m.add_all(ONLINE_DIR_NAME, pymoss.util.STARTER)
+
+      m.run(npairs=5)
+      h = pymoss.Html(m, "%s" % commit)
+      #moss_dir = (h.gen_all()).split('/')[-1]
+      moss_dir = (h.gen_all('output_noonline_temp')).split('/')[-1]
+      mv_cmd = "mv %s %s" % (os.path.join(cwd, moss_dir), commit_moss_dir)
+      print("moving moss output to", commit_moss_dir)
+      call_cmd(mv_cmd)
+    finally: m.cleanup()
+
+    rm_cmd = "rm -r %s" % (os.path.join(TARGET_DIR,commit_temp_dir))
+    call_cmd(rm_cmd)
+    count -= 1
+    if count == 0: break
 
 
 if __name__ == "__main__":
   # pymoss.util.time("Running all moss", lambda:
   #               multi_moss(TARGET_DIR, CURRENT_Q,
+  #                   FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
+  #                   STARTER_DIR_NAME,
+  #                   MOSS_OUTPUT_DIR))
+  pymoss.util.time("Running all moss with no online", lambda:
+                multi_moss_diff(TARGET_DIR, CURRENT_Q,
+                    FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
+                    STARTER_DIR_NAME,
+                    MOSS_OUTPUT_DIR))
+  # pymoss.util.time("Running all moss with no online", lambda:
+  #               multi_moss_noonline(TARGET_DIR, CURRENT_Q,
   #                   FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
   #                   STARTER_DIR_NAME,
   #                   MOSS_OUTPUT_DIR))
@@ -412,8 +594,8 @@ if __name__ == "__main__":
   #                   FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
   #                   STARTER_DIR_NAME,
   #                   MOSS_OUTPUT_DIR))
-  pymoss.util.time("Running max pairs", lambda:
-                max_pairs_users(TARGET_DIR, CURRENT_Q,
-                    FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
-                    STARTER_DIR_NAME,
-                    MOSS_OUTPUT_DIR))
+  # pymoss.util.time("Running max pairs", lambda:
+  #               max_pairs_users(TARGET_DIR, CURRENT_Q,
+  #                   FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
+  #                   STARTER_DIR_NAME,
+  #                   MOSS_OUTPUT_DIR))

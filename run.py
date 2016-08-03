@@ -7,6 +7,7 @@ from anonymize import *
 from tokenize_tool import *
 from prob_tool import *
 from diff_tool import *
+from diff_stats import *
 from lecture_stats import *
 import random
 
@@ -19,7 +20,7 @@ CODE_DIR = os.path.join(top_dir, CODE_DIR_NAME)
 EXPT_DIR = os.path.join("rawdata", "dir_mass")
 HOLDOUT_DIR = os.path.join("rawdata", "dir_holdout")
 
-COMMIT_DIR_NAME = "expanded_dir3"
+COMMIT_DIR_NAME = "expanded_data"
 COMMIT_DIR = os.path.join(top_dir, COMMIT_DIR_NAME)
 
 # final submissions and all known online versions
@@ -48,7 +49,7 @@ def run(code_dir, target_dir, final_submissions_dir, output_dir):
   #check_timestamps(code_dir)
   #get_unique_unames(code_dir)
 
-  #expand_all_commits(code_dir, target_dir)
+  expand_all_commits(code_dir, target_dir)
   # check_all_commits(target_dir, "2012_1")
   #copy_all_final(code_dir, final_submissions_dir)
   pass
@@ -56,11 +57,20 @@ def run(code_dir, target_dir, final_submissions_dir, output_dir):
 def graph_general(code_dir, output_dir):
   #all_timestamps(code_dir, output_dir)
   #plot_times(output_dir)
-  pass
+  for year_q_dirname in os.listdir(output_dir):
+    try:
+      year, q = year_q_dirname.split('_')
+      int(year), int(q)
+    except: continue
+    print "using", year_q_dirname
+    graph_gradetime(output_dir, year_q_dirname)
 
 def diff(code_dir, output_dir):
-  #all_diffs(code_dir, output_dir)
-  process_diffs(code_dir, output_dir, '2012_1')
+  year_q = '2012_1'
+  #all_diffs(code_dir, output_dir, year_q)
+  #moss_process(moss_dir, year_q, output_dir, final_submissions_dir, use_diff=True)
+  #process_diffs(code_dir, output_dir, year_q)
+  plot_diffs(output_dir, year_q)
 
 def moss(moss_dir, output_dir, final_submissions_dir):
   for year_q_dirname in os.listdir(output_dir):
@@ -70,7 +80,7 @@ def moss(moss_dir, output_dir, final_submissions_dir):
     except: continue
     print "Processing moss output for dir %s" % (year_q_dirname)
     #moss_process(moss_dir, year_q_dirname, output_dir, final_submissions_dir)
-    make_moss_graphs(output_dir, year_q_dirname)
+    #make_moss_graphs(output_dir, year_q_dirname)
     #create_gephi(output_dir, year_q_dirname)
 
 def lecture(output_dir):
@@ -164,9 +174,9 @@ if __name__ == "__main__":
   #make_holdout(CODE_DIR, HOLDOUT_DIR, EXPT_DIR)
   #anonymize(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, COMMIT_DIR)
   #moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
-  lecture(OUTPUT_DIR)
+  #lecture(OUTPUT_DIR)
   #gephi(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR)
   #tokenize(COMMIT_DIR, OUTPUT_DIR)
   #probs(COMMIT_DIR, OUTPUT_DIR)
-  #diff(CODE_DIR, OUTPUT_DIR)
+  diff(CODE_DIR, OUTPUT_DIR)
   #pairwise(OUTPUT_DIR)

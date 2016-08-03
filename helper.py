@@ -8,9 +8,12 @@ import matplotlib.cm as cmx
 import matplotlib.colors as mplcolors
 import javalang
 import re
+import itertools
 from time import strptime, mktime
 from datetime import datetime
 from pytz import timezone
+from lxml import etree
+from lxml import html
 
 # directory things
 def load_path():
@@ -37,7 +40,9 @@ def posix_to_time(posix_t, format_str=None):
 
 # top sim loading
 add_str = ''
-def load_top_sims_from_log(output_dir, year_q):
+def load_top_sims_from_log(output_dir, year_q, use_diff=False):
+  if use_diff:
+    year_q = 'diff_%s' % year_q
   top_sim_path = os.path.join(output_dir, "%s_top_sim%s.csv" % (year_q, add_str))
   top_sims = {}
   print ">>>>>>>>%s" % top_sim_path
@@ -56,16 +61,28 @@ def load_top_sims_from_log(output_dir, year_q):
           if uname not in top_sims:
             top_sims[uname] = {}
         else:
-          # own_commit, other_f_path, other_f_html, tokens_matched,
-          #       percent_self, percent_other
-          _, posix_time, commit_hash = line_commas[0].split('_')
-          #posix_time, commit_hash = line_commas[0].split('_')[-2:]
-          other_f_path, other_f_html, tokens_matched, \
-            percent_self, percent_other, commit_num, posix_t_2 = line_commas[1:]
-          top_sims[uname][posix_time] = \
-            (get_uname_from_f(other_f_path), int(tokens_matched),
-                      float(percent_self), float(percent_other),
-                      int(commit_num), commit_hash)
+          if use_diff:
+            _, posix_time, commit_hash = line_commas[0].split('_')
+            line_range = line_commas[-1]
+            other_f_path, other_f_html, tokens_matched, \
+              percent_self, percent_other, commit_num, posix_t_2 = line_commas[1:-1]
+            if posix_time not in top_sims[uname]:
+              top_sims[uname][posix_time] = {}
+            top_sims[uname][posix_time][line_range] = \
+              (get_uname_from_f(other_f_path), int(tokens_matched),
+                        float(percent_self), float(percent_other),
+                        int(commit_num), commit_hash)
+          else:
+            # own_commit, other_f_path, other_f_html, tokens_matched,
+            #       percent_self, percent_other
+            _, posix_time, commit_hash = line_commas[0].split('_')
+            #posix_time, commit_hash = line_commas[0].split('_')[-2:]
+            other_f_path, other_f_html, tokens_matched, \
+              percent_self, percent_other, commit_num, posix_t_2 = line_commas[1:]
+            top_sims[uname][posix_time] = \
+              (get_uname_from_f(other_f_path), int(tokens_matched),
+                        float(percent_self), float(percent_other),
+                        int(commit_num), commit_hash)
       line = f.readline()
   return top_sims
 
@@ -208,6 +225,9 @@ def load_posix_to_commit_ind(output_dir, year_q):
 student --> (midterm, final)
 max midterm score: 120
 max final score: 180
+
+Some students dropped the class after the midterm, so they have no
+final grade. These students have '-1' for a final grade.
 """
 def load_exam_grades(output_dir, year_q):
   grades_dir = os.path.join(output_dir, 'grades')
@@ -220,4 +240,55 @@ def load_exam_grades(output_dir, year_q):
     for line in f.readlines():
       line = line.strip()
       uname, mt, final = line.split(',')
-      grades_dict[uname] = (mt, final)
+      if mt == '': mt = -1
+      if final == '': final = -1
+      grades_dict[uname] = (int(mt), int(final))
+  return grades_dict
+
+"""
+With respect to the array c_grades, which is an array
+with values in [0.0, 1.0]
+"""
+def set_colormap(c_grades):
+  colormap=c_grades
+  norm = mpl.colors.Normalize(vmin=min(c_grades), vmax=max(c_grades))
+  m=cmx.ScalarMappable(norm=norm, cmap=cmx.jet)
+  m.set_array(colormap)
+  return m
+
+def get_rankings(grades): #, starttimes, endtimes, duration):
+  inds = np.argsort(grades) # smallest to largest
+  inds_arg = np.argsort(inds) # ranking indices
+  rankings = np.linspace(0.0, 1.0, len(inds))[inds_arg]
+  return rankings
+
+"""
+Returns two dictionaries (mt and final):
+  uname --> (grade, rank)
+  grade and rank are both on a scale of 0.0 to 1.0.
+"""
+def get_graderank_dict(grades_dict, mt_max=140.0, f_max=180.0):
+  mt_list = []
+  f_list = []
+  for uname in grades_dict:
+    mt, f = grades_dict[uname]
+    if mt != -1:
+      mt_list.append((mt, uname))
+    if f != -1:
+      f_list.append((f, uname))
+  m_grades, m_unames = zip(*mt_list)
+  m_inds = np.argsort(np.array(m_grades))
+  m_rankdict = {}
+  for rank in range(len(m_unames)):
+    ind = m_inds[rank]
+    m_rankdict[m_unames[ind]] = (m_grades[ind]/float(mt_max),
+                                 rank/float(len(m_unames)))
+  f_rankdict = {}
+  f_grades, f_unames = zip(*f_list)
+  f_inds = np.argsort(np.array(f_grades))
+  for rank in range(len(f_unames)):
+    ind = f_inds[rank]
+    f_rankdict[f_unames[ind]] = (f_grades[ind]/float(f_max),
+                                 rank/float(len(f_unames)))
+  return m_rankdict, f_rankdict
+
