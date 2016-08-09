@@ -20,5 +20,6 @@ sudo apt-get install python-lxml
 git clone https://github.com/yanlisa/javalang.git
 cd javalang
 sudo python setup.py install
+sudo apt-get install python-lxml
 
 If running with SSH, SSH -X or -Y for plotting.

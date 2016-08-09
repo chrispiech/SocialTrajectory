@@ -69,7 +69,7 @@ def diff(code_dir, output_dir):
   year_q = '2012_1'
   #all_diffs(code_dir, output_dir, year_q)
   #moss_process(moss_dir, year_q, output_dir, final_submissions_dir, use_diff=True)
-  #process_diffs(code_dir, output_dir, year_q)
+  process_diffs(code_dir, output_dir, year_q)
   plot_diffs(output_dir, year_q)
 
 def moss(moss_dir, output_dir, final_submissions_dir):
@@ -79,9 +79,11 @@ def moss(moss_dir, output_dir, final_submissions_dir):
       int(year), int(q)
     except: continue
     print "Processing moss output for dir %s" % (year_q_dirname)
+    year_q_dirname = 'noonline_2012_1'
     #moss_process(moss_dir, year_q_dirname, output_dir, final_submissions_dir)
-    #make_moss_graphs(output_dir, year_q_dirname)
+    make_moss_graphs(output_dir, year_q_dirname)
     #create_gephi(output_dir, year_q_dirname)
+    break
 
 def lecture(output_dir):
   lecture_plot(output_dir, '2012_1')
@@ -173,10 +175,10 @@ if __name__ == "__main__":
   #graph_general(CODE_DIR, OUTPUT_DIR)
   #make_holdout(CODE_DIR, HOLDOUT_DIR, EXPT_DIR)
   #anonymize(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, COMMIT_DIR)
-  #moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
+  moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
   #lecture(OUTPUT_DIR)
   #gephi(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR)
   #tokenize(COMMIT_DIR, OUTPUT_DIR)
   #probs(COMMIT_DIR, OUTPUT_DIR)
-  diff(CODE_DIR, OUTPUT_DIR)
+  #diff(CODE_DIR, OUTPUT_DIR)
   #pairwise(OUTPUT_DIR)

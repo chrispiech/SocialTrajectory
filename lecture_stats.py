@@ -220,13 +220,13 @@ def graph_sims_to_lectures(output_dir, lecture_year_q, top_sims,
 
     ##### commit length
     l_i = 1
-    ax_all[i,l_i].scatter(commit_length, start_times, marker='p', s=sims*5, c=grades, lw=0)
+    ax_all[i,l_i].scatter(commit_index/commit_length, start_times, marker='p', s=sims*5, c=grades, lw=0)
     ax_all[i,l_i].set_ylabel('Start times')
     ax_all[i,l_i].set_ylim(st_ub, st_lb) # start is y axis, reverse
     ax_all[i,l_i].set_yticks(st_posix_range)
     ax_all[i,l_i].set_yticklabels(st_labels, rotation=45, fontsize=8)
-    ax_all[i,l_i].set_xlabel('Commit length')
-    ax_all[i,l_i].set_title('%s (start time vs commit)' % lecture_fname)
+    ax_all[i,l_i].set_xlabel('Commit Time')
+    ax_all[i,l_i].set_title('%s (start time vs commit time)' % lecture_fname)
 
   ax_all[-1,t_i].set_xlabel('Start vs end time (absolute scale)')
   ax_all[-1,s_i].set_xlabel('Grade vs lecture similarity (1.0 scale)')

@@ -369,8 +369,12 @@ def graph_all_similarities(output_dir, year_q, top_sims, sim, time_type,
     only_names = set()
   # change snapshot times to value between 0 to 1 (% completion)
   norm_gran = 3 # decimal granularity
+  if len(year_q.split('_')) > 2: # 'noonline_2012_1' or something
+    real_year_q = '_'.join(year_q.split('_')[1:])
+    exam_grades = load_exam_grades(output_dir, real_year_q)
+  else:
+    exam_grades = load_exam_grades(output_dir, year_q)
   
-  exam_grades = load_exam_grades(output_dir, year_q)
   if use_mt:
     graderanks, _ = get_graderank_dict(exam_grades)
   else:
