@@ -19,6 +19,10 @@ code inside helper.py, but for now everything it's alright.
 
 def anonymize_all(moss_dir, output_dir, commit_dir, code_dir=None):
   uname_lookup = load_uname_to_id_lookup()
+  # reload lookups for sorting...
+  # print "Doing some reloading of usernames"
+  # by_year = load_uname_lookup_by_year_q()
+  # export_uname_lookup_by_year_q(by_year)
 
   for year_q_dirname in os.listdir(output_dir):
     try:
@@ -33,6 +37,10 @@ def anonymize_all(moss_dir, output_dir, commit_dir, code_dir=None):
     real_grades = os.path.join(code_dir, 'real_grades')
     anon_grades = os.path.join(code_dir, 'anon_grades')
     anonymize_grades(real_grades, anon_grades, uname_lookup)
+
+    real_lair = os.path.join(code_dir, 'real_lair')
+    anon_lair = os.path.join(code_dir, 'anon_lair')
+    anonymize_lair(real_lair, anon_lair, uname_lookup)
 
   # new_unames = []
   # for year_q_dirname in os.listdir(commit_dir):
@@ -264,4 +272,92 @@ def anonymize_grades(real_dir, anon_dir, uname_lookup_orig):
       anon_f.write('\n'.join(['%s,%s' % (student_id,
                                 ','.join(anon_grades[student_id])) \
                                     for student_id in student_ids]))
+      print anon_f.name
+
+def anonymize_lair(real_dir, anon_dir, uname_lookup_orig):
+  import csv
+  # since the uname_lookup table is tagged with the user's submit
+  # count, we make a uname_lookup solely based on user for the grades.
+  uname_lookup = {}
+  for student_commit in uname_lookup_orig:
+    student = student_commit.split('_')[0]
+    uname_lookup[student] = uname_lookup_orig[student_commit]
+
+  lair_dict = {}
+  sunetid_ind, ta_ind, class_ind, year_q_ind = 0, 1, 2, 3
+  enter_ind, help_ind, end_ind = 4, 5, 6
+  problem_ind, solution_ind = 7, 8
+  ta_lookup = {} # ta_sunetid -> value
+  ta_lookup_by_year = {}
+  tots_lookup = {}
+  count = 0
+  with open(os.path.join(real_dir, 'AnonRequests.csv'), 'r') as csvfile:
+    reader = csv.reader(csvfile)
+    # SUNet ID, TA name, date entered, helped, finished
+    # can sometimes have "null" in the start help time column, so ignore
+    for row in reader:
+      if count % 1000 == 0:
+        print count
+      count += 1
+      uname, ta_uname, classname, year_q_str, start_help, _, end_help, prob, sol = \
+          row
+      if classname.upper() != 'CS106A': continue
+
+      year_int, q_int = map(int, year_q_str.split('.'))
+      q_int = (q_int + 1) # fall: 4 -> 5 -> 1 (else: 2 -> 3, etc.)
+      if q_int == 5: q_int = 1
+      if q_int == 4: q_int = 4
+      year_q = '%s_%s' % (year_int, q_int)
+      if year_q not in tots_lookup:
+        tots_lookup[year_q] = set()
+      tots_lookup[year_q].add(uname)
+
+      if uname not in uname_lookup: continue
+      student_id = uname_lookup[uname]
+      if '%s0%s' % (year_int, q_int) != student_id[:6]:
+        print "%s is retaking in %s" % (student_id, year_q)
+        continue
+
+      if year_q not in lair_dict:
+        lair_dict[year_q] = {}
+      if student_id not in lair_dict[year_q]:
+        lair_dict[year_q][student_id] = []
+
+      if year_q not in ta_lookup_by_year:
+        ta_lookup_by_year[year_q] = set()
+      if ta_uname not in ta_lookup:
+        ta_lookup[ta_uname] = '%s%02d%02d' % (year_int, q_int,
+            len(ta_lookup_by_year[year_q]))
+      ta_id = ta_lookup[ta_uname]
+      if ta_uname not in ta_lookup_by_year[year_q]:
+        ta_lookup_by_year[year_q].add(ta_id)
+      lair_dict[year_q][student_id].append(\
+          (start_help, end_help, ta_id, prob, sol))
+
+  all_year_qs = tots_lookup.keys()
+  all_year_qs.sort()
+  for year_q in ta_lookup_by_year:
+    tas = list(ta_lookup_by_year[year_q])
+    tas.sort()
+    print '%s\n\t%s' % (year_q, '\n\t'.join(tas))
+  tas = ta_lookup.keys()
+  tas.sort()
+  for ta in tas:
+    print ta, ta_lookup[ta]
+  for year_q in all_year_qs:
+    lair_unames = 0
+    tot_unames = len(tots_lookup[year_q])
+    if year_q in lair_dict:
+      lair_unames = len(lair_dict[year_q].keys())
+    print "%s: saving %s/%s student records" % (year_q, lair_unames, tot_unames)
+
+  for year_q in lair_dict:
+    with open(os.path.join(anon_dir, '%s.csv' % year_q), 'w') as anon_f:
+      student_ids = lair_dict[year_q].keys()
+      student_ids.sort()
+      for student_id in student_ids:
+        lair_entries = lair_dict[year_q][student_id]
+        anon_f.write('\n'.join(['%s,%s' % (student_id,
+                                      ','.join(map(str,lair_entry))) \
+                          for lair_entry in lair_entries]))
       print anon_f.name

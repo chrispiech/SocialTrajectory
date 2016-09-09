@@ -13,14 +13,16 @@ import random
 
 top_dir = load_path() # from helper.py
 
-CODE_DIR_NAME = "rawdata"
-CODE_DIR = os.path.join(top_dir, CODE_DIR_NAME)
-
 # for making a holdout set
 EXPT_DIR = os.path.join("rawdata", "dir_mass")
 HOLDOUT_DIR = os.path.join("rawdata", "dir_holdout")
 
-COMMIT_DIR_NAME = "expanded_data"
+CODE_DIR_NAME = os.path.join("rawdata", "dir_mass")
+CODE_DIR_NAME = os.path.join("rawdata", "dir3")
+CODE_DIR_NAME = os.path.join("rawdata")
+CODE_DIR = os.path.join(top_dir, CODE_DIR_NAME)
+
+COMMIT_DIR_NAME = "expanded_mass"
 COMMIT_DIR = os.path.join(top_dir, COMMIT_DIR_NAME)
 
 # final submissions and all known online versions
@@ -45,13 +47,13 @@ Expands all commits.
 
 """
 def run(code_dir, target_dir, final_submissions_dir, output_dir):
-  #reset_all_to_master(code_dir)
+  reset_all_to_master(code_dir)
   #check_timestamps(code_dir)
   #get_unique_unames(code_dir)
 
-  expand_all_commits(code_dir, target_dir)
+  #expand_all_commits(code_dir, target_dir)
   # check_all_commits(target_dir, "2012_1")
-  #copy_all_final(code_dir, final_submissions_dir)
+  copy_all_final(code_dir, final_submissions_dir)
   pass
 
 def graph_general(code_dir, output_dir):
@@ -63,12 +65,15 @@ def graph_general(code_dir, output_dir):
       int(year), int(q)
     except: continue
     print "using", year_q_dirname
-    graph_gradetime(output_dir, year_q_dirname)
+    #graph_gradetime(output_dir, year_q_dirname)
+    plot_times_sorted(output_dir, year_q_dirname)
+    #plot_k_means(output_dir, year_q_dirname)
+    break
 
-def diff(code_dir, output_dir):
+def diff(moss_dir, code_dir, output_dir):
   year_q = '2012_1'
   #all_diffs(code_dir, output_dir, year_q)
-  #moss_process(moss_dir, year_q, output_dir, final_submissions_dir, use_diff=True)
+  moss_process(moss_dir, year_q, output_dir, use_diff=True)
   process_diffs(code_dir, output_dir, year_q)
   plot_diffs(output_dir, year_q)
 
@@ -174,11 +179,11 @@ if __name__ == "__main__":
   #run(CODE_DIR, COMMIT_DIR, FINAL_SUBMISSIONS_DIR, OUTPUT_DIR)
   #graph_general(CODE_DIR, OUTPUT_DIR)
   #make_holdout(CODE_DIR, HOLDOUT_DIR, EXPT_DIR)
-  #anonymize(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, COMMIT_DIR)
-  moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
+  anonymize(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, COMMIT_DIR)
+  #moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
   #lecture(OUTPUT_DIR)
   #gephi(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR)
   #tokenize(COMMIT_DIR, OUTPUT_DIR)
   #probs(COMMIT_DIR, OUTPUT_DIR)
-  #diff(CODE_DIR, OUTPUT_DIR)
+  #diff(MOSS_OUTPUT_TOP_DIR, CODE_DIR, OUTPUT_DIR)
   #pairwise(OUTPUT_DIR)

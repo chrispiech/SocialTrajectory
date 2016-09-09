@@ -178,7 +178,11 @@ def check_all_commits(target_dir, year_q):
 
 ############## UTILITY FUNCTIONS #################
 def reset_all_to_master(code_dir):
+  tot_students = len(os.listdir(code_dir))
+  num_students = 0
   for student in os.listdir(code_dir):
+    num_students += 1
+    print "%d/%d: Reset to master (%s)" % (num_students, tot_students, student)
     student_dir = os.path.join(code_dir, student)
     git_master(student_dir)
 

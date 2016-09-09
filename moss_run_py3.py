@@ -11,10 +11,9 @@ top_dir = load_path()
 
 baseline = True # running only final submissions against each other
 use_sample = False
-CODE_DIR_NAME = "rawdata/dir3"
-if use_sample: CODE_DIR_NAME = os.path.join("rawdata", "sampledata")
-CODE_DIR = os.path.join(top_dir, CODE_DIR_NAME)
-TARGET_DIR_NAME = "expanded_dir3"
+use_all_quarters = True
+#TARGET_DIR_NAME = "expanded_dir3"
+TARGET_DIR_NAME = "expanded_mass"
 if use_sample: TARGET_DIR_NAME = "expanded_sampledata"
 TARGET_DIR = os.path.join(top_dir, TARGET_DIR_NAME)
 
@@ -29,9 +28,9 @@ NOONLINE_DIR_NAME = "noonline"
 STARTER_DIR_NAME = "STARTER"
 
 # Moss options
-CURRENT_Q = "2012_1"
-if use_sample: CURRENT_Q = "2013_1"
-MOSS_OUTPUT_DIR = os.path.join(top_dir, "moss_output")
+#MOSS_DIR_NAME = "moss_output"
+MOSS_DIR_NAME = "moss_mass"
+MOSS_OUTPUT_DIR = os.path.join(top_dir, MOSS_DIR_NAME)
 filetype = "java"
 
 def call_cmd(cmd):
@@ -45,6 +44,7 @@ def baseline(TARGET_DIR, CURRENT_Q,
   current_q = 'baseline'
   if not os.path.exists(os.path.join(MOSS_OUTPUT_DIR, current_q)):
     os.makedirs(os.path.join(MOSS_OUTPUT_DIR, current_q))
+  #current_q = 'final_submissions' # for holdout and mass; all quarters!
 
   cwd = os.getcwd()
   os.chdir(TARGET_DIR)
@@ -53,8 +53,10 @@ def baseline(TARGET_DIR, CURRENT_Q,
   m.add(STARTER_DIR_NAME, pymoss.util.STARTER)
   m.add_all(ONLINE_DIR_NAME, pymoss.util.ARCHIVE)
   m.add_all(current_q)
+  num_dirs = len(os.listdir(os.path.join(TARGET_DIR, current_q)))
+  num_dirs_ceil = (num_dirs/100+1)*100
 
-  m.run(npairs=500)
+  m.run(npairs=num_dirs_ceil)
   h = pymoss.Html(m, "%s" % current_q)
   #moss_dir = (h.gen_all()).split('/')[-1]
   moss_dir = (h.gen_all('baseline_temp')).split('/')[-1]
@@ -121,6 +123,7 @@ def select_pairs(TARGET_DIR, CURRENT_Q,
     call_cmd(rm_cmd)
     count -= 1
     if count == 0: break
+  os.chdir(cwd)
 
 """
 Compares all commits of one user to all commits of the other user.
@@ -263,21 +266,21 @@ def multi_moss(TARGET_DIR, CURRENT_Q,
   os.chdir(TARGET_DIR)
   print("in dir", TARGET_DIR)
 
-  # make final dir that only has current q, just for 2012_1 analysis
   final_current_q_dir = ''
-  final_current_q_dir = '%s_%s' % (FINAL_SUBMISSIONS_DIR_NAME, CURRENT_Q)
-  print("Making current_q-only final submission dir.")
-  if not os.path.exists(os.path.join(final_current_q_dir)):
-    os.makedirs(os.path.join(final_current_q_dir))
-    year, q = CURRENT_Q.split('_')
-    current_q_str = '%s%02d' % (year, int(q))
-    print(current_q_str)
-    final_current_q_subs = filter(lambda d: d[:6] == current_q_str,
-                            os.listdir(FINAL_SUBMISSIONS_DIR))
-    for final_sub in final_current_q_subs:
-      ln_cmd = 'ln -s %s %s' % (os.path.join(FINAL_SUBMISSIONS_DIR, final_sub),
-                                os.path.join(final_current_q_dir, final_sub))
-      call_cmd(ln_cmd)
+  # # make final dir that only has current q, just for 2012_1 analysis
+  # final_current_q_dir = '%s_%s' % (FINAL_SUBMISSIONS_DIR_NAME, CURRENT_Q)
+  # print("Making current_q-only final submission dir.")
+  # if not os.path.exists(os.path.join(final_current_q_dir)):
+  #   os.makedirs(os.path.join(final_current_q_dir))
+  #   year, q = CURRENT_Q.split('_')
+  #   current_q_str = '%s%02d' % (year, int(q))
+  #   print(current_q_str)
+  #   final_current_q_subs = filter(lambda d: d[:6] == current_q_str,
+  #                           os.listdir(FINAL_SUBMISSIONS_DIR))
+  #   for final_sub in final_current_q_subs:
+  #     ln_cmd = 'ln -s %s %s' % (os.path.join(FINAL_SUBMISSIONS_DIR, final_sub),
+  #                               os.path.join(final_current_q_dir, final_sub))
+  #     call_cmd(ln_cmd)
 
   TEMP_DIR_NAME = "temp"
   count = -1 # run all of them
@@ -327,6 +330,7 @@ def multi_moss(TARGET_DIR, CURRENT_Q,
     call_cmd(rm_cmd)
     count -= 1
     if count == 0: break
+  os.chdir(cwd)
 
 def multi_moss_diff(TARGET_DIR, CURRENT_Q,
                 FINAL_SUBMISSIONS_DIR_NAME,
@@ -414,6 +418,7 @@ def multi_moss_diff(TARGET_DIR, CURRENT_Q,
         call_cmd(rm_cmd)
       count -= 1
       if count == 0: break
+  os.chdir(cwd)
 
 def multi_moss_lecture(TARGET_DIR, CURRENT_Q,
                 LECTURE_DIR_NAME,
@@ -476,6 +481,7 @@ def multi_moss_lecture(TARGET_DIR, CURRENT_Q,
     call_cmd(rm_cmd)
     count -= 1
     if count == 0: break
+  os.chdir(cwd)
 
 def multi_moss_noonline(TARGET_DIR, CURRENT_Q,
                 FINAL_SUBMISSIONS_DIR_NAME,
@@ -561,19 +567,33 @@ def multi_moss_noonline(TARGET_DIR, CURRENT_Q,
     call_cmd(rm_cmd)
     count -= 1
     if count == 0: break
+  os.chdir(cwd)
 
 
 if __name__ == "__main__":
-  # pymoss.util.time("Running all moss", lambda:
-  #               multi_moss(TARGET_DIR, CURRENT_Q,
+  CURRENT_Q = "2012_1"
+  if use_sample: CURRENT_Q = "2013_1"
+
+  # pymoss.util.time("Running baseline", lambda:
+  #               baseline(TARGET_DIR, CURRENT_Q,
   #                   FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
   #                   STARTER_DIR_NAME,
   #                   MOSS_OUTPUT_DIR))
-  pymoss.util.time("Running all moss with no online", lambda:
-                multi_moss_diff(TARGET_DIR, CURRENT_Q,
-                    FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
-                    STARTER_DIR_NAME,
-                    MOSS_OUTPUT_DIR))
+  for year_q_dirname in os.listdir(TARGET_DIR):
+    try:
+      year, q = year_q_dirname.split('_')
+      int(year), int(q)
+    except: continue
+    pymoss.util.time("Running all moss", lambda:
+                  multi_moss(TARGET_DIR, year_q_dirname,
+                      FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
+                      STARTER_DIR_NAME,
+                      MOSS_OUTPUT_DIR))
+  # pymoss.util.time("Running all moss with no online", lambda:
+  #               multi_moss_diff(TARGET_DIR, CURRENT_Q,
+  #                   FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
+  #                   STARTER_DIR_NAME,
+  #                   MOSS_OUTPUT_DIR))
   # pymoss.util.time("Running all moss with no online", lambda:
   #               multi_moss_noonline(TARGET_DIR, CURRENT_Q,
   #                   FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
@@ -582,11 +602,6 @@ if __name__ == "__main__":
   # pymoss.util.time("Running lecture moss", lambda:
   #               multi_moss_lecture(TARGET_DIR, CURRENT_Q,
   #                   LECTURE_DIR_NAME, ONLINE_DIR_NAME,
-  #                   STARTER_DIR_NAME,
-  #                   MOSS_OUTPUT_DIR))
-  # pymoss.util.time("Running baseline", lambda:
-  #               baseline(TARGET_DIR, CURRENT_Q,
-  #                   FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
   #                   STARTER_DIR_NAME,
   #                   MOSS_OUTPUT_DIR))
   # pymoss.util.time("Running select pairs", lambda:

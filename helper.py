@@ -30,8 +30,9 @@ def call_cmd(cmd):
 # time stuff
 pst = timezone('US/Pacific')
 all_start_time = mktime(datetime(2012,10,15,tzinfo=pst).timetuple())
-all_end_time = mktime(datetime(2012,10,24,15,15,tzinfo=pst).timetuple())
-incr_length = 86400/2
+all_end_time = mktime(datetime(2012,10,24,15,15,tzinfo=pst).timetuple()) # deadline
+all_end_time = mktime(datetime(2012,10,25, 1, 0,tzinfo=pst).timetuple())
+incr_length = 86400/2 # 12 hours
 
 def posix_to_time(posix_t, format_str=None):
 	if not format_str:
@@ -40,9 +41,14 @@ def posix_to_time(posix_t, format_str=None):
 
 # top sim loading
 add_str = ''
-def load_top_sims_from_log(output_dir, year_q, use_diff=False):
-  if use_diff:
+def load_top_sims_from_log(output_dir, year_q, use_diff=0):
+  global add_str
+  if use_diff == 1:
     year_q = 'diff_%s' % year_q
+    add_str = '_insert'
+  elif use_diff == 2:
+    year_q = 'diff_%s' % year_q
+    add_str = '_delete'
   top_sim_path = os.path.join(output_dir, "%s_top_sim%s.csv" % (year_q, add_str))
   top_sims = {}
   print ">>>>>>>>%s" % top_sim_path
@@ -125,6 +131,7 @@ def load_uname_lookup_by_year_q():
   lookup_folder = os.path.join(top_dir, 'uname_lookup')
   for lookup in os.listdir(lookup_folder):
     year_q, ext = lookup.split('.')
+    if ext != 'lookup': continue
     uname_to_id[year_q] = load_uname_to_id_lookup_single_year_q(year_q)
   return uname_to_id
   
@@ -154,8 +161,17 @@ def export_uname_lookup_by_year_q(uname_lookup_by_year_q):
   for year_q in uname_lookup_by_year_q:
     lookup_dest = os.path.join(lookup_folder, '%s.%s' % (year_q, 'lookup2222'))
     with open(lookup_dest, 'w') as f:
-      for uname in uname_lookup_by_year_q[year_q]:
-        f.write('%s,%s\n' % (uname_lookup_by_year_q[year_q][uname], uname))
+      unames_by_year = uname_lookup_by_year_q[year_q].values()
+      unames_by_year.sort()
+      temp_uname_dict = {}
+      for uname, student_id in uname_lookup_by_year_q[year_q].iteritems():
+        temp_uname_dict[student_id] = uname
+      student_ids = temp_uname_dict.keys()
+      student_ids.sort()
+      for student_id in student_ids:
+        f.write('%s,%s\n' % (student_id, temp_uname_dict[student_id]))
+      # for uname in unames_by_year:
+      #   f.write('%s,%s\n' % (uname_lookup_by_year_q[year_q][uname], uname))
     lookup_orig = os.path.join(lookup_folder, '%s.%s' % (year_q, 'lookup'))
     mv_cmd = "cp %s %s" % (lookup_dest, lookup_orig)
     print "Moving", mv_cmd

@@ -5,13 +5,15 @@ from diff_tool import *
 import matplotlib.colors as cl
 import matplotlib.cm as cmx
 
+INSERT_TYPE, DELETE_TYPE = 1, 2
 def plot_diffs(output_dir, year_q):
   #plot_diffs_over_time(output_dir, '2012_1')
   #plot_diff_hist(output_dir, year_q)
   plot_consecline_stats(output_dir, year_q, use_mt=False)
 
-  top_sims = load_top_sims_from_log(output_dir, year_q, use_diff=True)
-  plot_diff_moss(output_dir, year_q, top_sims, insert=True)
+  for diff_type in [INSERT_TYPE, DELETE_TYPE]:
+    top_sims = load_top_sims_from_log(output_dir, year_q, use_diff=diff_type)
+    plot_diff_moss(output_dir, year_q, top_sims, diff_type=diff_type)
 
 """
 Plots something similar to the regular moss plot.
@@ -20,7 +22,7 @@ This one or token one is the best one.
 http://52.37.79.5:8000/diff_2012_1_aggr_commit_other_Final_rank_norm.png
 """
 line_thresh = 100 # if below this threshold, don't plot.
-def plot_diff_moss(output_dir, year_q, top_sims, insert=True):
+def plot_diff_moss(output_dir, year_q, top_sims, diff_type=0):
   # don't use grades yet thanks
   exam_grades = load_exam_grades(output_dir, year_q)
   mt_gr, f_gr = get_graderank_dict(exam_grades)
@@ -29,6 +31,10 @@ def plot_diff_moss(output_dir, year_q, top_sims, insert=True):
   use_other = True
   graph_options = list(itertools.product((True, False), (True, False)))
   axes_options = list(itertools.product(('percent', 'token'), ('commit', 'posix')))
+  if diff_type == INSERT_TYPE:
+    add_str = '_insert'
+  elif diff_type == DELETE_TYPE:
+    add_str = '_delete'
   for normalize_flag, use_grades in graph_options:
     for sim_type, time_type in axes_options:
       for use_mt, use_rank in graph_options:
@@ -75,6 +81,7 @@ def plot_diff_moss(output_dir, year_q, top_sims, insert=True):
           all_diff_str_stats += uname_str_stats
         
         #all_diff_np = np.array(all_diff_stats, dtype=dtype)
+        print "all elts", len(all_diff_stats)
         all_diff_np = np.array(all_diff_stats)
         all_diff_str_np = np.array(all_diff_str_stats)
 
@@ -240,9 +247,9 @@ def plot_diff_moss(output_dir, year_q, top_sims, insert=True):
             
 
         # figure out prefix name.
-        fig_prefix = 'diff_%s_aggr_%s_%s' % (year_q, time_type, sim_type)
+        fig_prefix = 'diff%s_%s_aggr_%s_%s' % (add_str, year_q, time_type, sim_type)
         if sim_type == 'percent' and use_other:
-          fig_prefix = 'diff_%s_aggr_%s_other' % (year_q, time_type)
+          fig_prefix = 'diff%s_%s_aggr_%s_other' % (add_str, year_q, time_type)
           
         if use_grades:
           if use_mt:

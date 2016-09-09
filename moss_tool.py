@@ -7,10 +7,13 @@ output_moss_dir = "moss"
 """
 Overall moss processing function.
 """
-def moss_process(moss_dir, year_q, output_dir, final_submissions_dir, use_diff=False):
+def moss_process(moss_dir, year_q, output_dir, use_diff=False):
   if use_diff:
     year_q = 'diff_%s' % year_q
-  write_all_moss_similar(moss_dir, year_q, output_dir, use_diff=use_diff)
+    for diff_type in [1,2]:
+      write_all_moss_similar(moss_dir, year_q, output_dir, use_diff=diff_type)
+  else:
+    write_all_moss_similar(moss_dir, year_q, output_dir)
   #all_sims = load_all_sims_from_log(output_dir, year_q)
   #return all_sims
 
@@ -48,13 +51,17 @@ def load_all_sims_from_log(output_dir, year_q):
   print "Finished loading all moss csv files."
   return all_sims
 
-def write_all_moss_similar(moss_dir, year_q, output_dir, use_diff=False):
+def write_all_moss_similar(moss_dir, year_q, output_dir, use_diff=0):
   moss_dir = os.path.join(moss_dir, year_q)
-  if use_diff: # only use inserts for now?
-    moss_dir = os.path.join(moss_dir, 'insert')
   output_yq_dir = os.path.join(output_dir, year_q, output_moss_dir)
-  if use_diff:
+  if use_diff == 1: # only use inserts for now?
+    moss_dir = os.path.join(moss_dir, 'insert')
     output_yq_dir = os.path.join(output_yq_dir, 'insert')
+    add_str = '_insert'
+  elif use_diff == 2:
+    moss_dir = os.path.join(moss_dir, 'delete')
+    output_yq_dir = os.path.join(output_yq_dir, 'delete')
+    add_str = '_delete'
   if not os.path.exists(output_yq_dir):
     os.makedirs(output_yq_dir)
   all_sims = {}
@@ -65,7 +72,7 @@ def write_all_moss_similar(moss_dir, year_q, output_dir, use_diff=False):
     uname = commit.split('_')[0]
     if use_diff:
       for line in os.listdir(os.path.join(moss_dir, commit)):
-        print uname, commit, line
+        print use_diff, uname, commit, line
         # do not write similarities per line per commit
         similarities = write_moss_similar(moss_dir, os.path.join(commit, line),
                                             output_dir=None)
@@ -96,7 +103,7 @@ def write_all_moss_similar(moss_dir, year_q, output_dir, use_diff=False):
   top_sim_path = os.path.join(output_dir, "%s_top_sim%s.csv" % (year_q, add_str)) 
   write_top_sims_to_file(top_sims, top_sim_path, use_diff=use_diff)
 
-def write_top_sims_to_file(top_sims, top_sim_path,use_diff=False):
+def write_top_sims_to_file(top_sims, top_sim_path, use_diff=0):
   with open(top_sim_path, 'w') as f:
     unames = top_sims.keys()
     unames.sort()
@@ -111,7 +118,7 @@ def write_top_sims_to_file(top_sims, top_sim_path,use_diff=False):
         except: # probably the baseline case happening, which only has uname
           commit = '%s_%s_%s' % (commit, 0, 0)
           _,posix_time,_ = commit.split('_')
-        if use_diff: # several line ranges per commit
+        if use_diff != 0: # several line ranges per commit
           lines = top_sims[uname][commit].keys()
           lines.sort()
           for line in lines:
