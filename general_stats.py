@@ -103,7 +103,12 @@ For each student dir in the code_dir, save a log of
 the timestamps and commit number in the output_dir.
 """
 def all_timestamps(code_dir, output_dir):
+  uname_lookup = load_uname_to_id_lookup()
+  num_students = len(os.listdir(code_dir))
+  curr_student = 0
   for student in os.listdir(code_dir):
+    curr_student += 1
+    uname = uname_lookup[student]
     student_dir = os.path.join(code_dir, student)
     year_q = get_submit_time(student_dir)
     if not year_q: continue
@@ -115,16 +120,18 @@ def all_timestamps(code_dir, output_dir):
     all_commits = git_log(git_dir=student_dir,
       format_str="%h\t%ct\t%cd", extra_str="--date=local")
 
-    student_log_name = "%s.txt" % student
+    student_log_name = "%s.txt" % uname
     student_log_file = os.path.join(output_dir, year_q, output_stats_dir,
               student_log_name)
     with open(student_log_file, 'w') as f:
       f.write(all_commits)
-    print "Wrote student log file", student_log_file
+    print "%d/%d: Wrote student log file %s" % \
+        (curr_student, num_students, student_log_file)
 
 def graph_gradetime(output_dir, year_q):
-  top_sims = load_top_sims_from_log(output_dir, year_q)
-  exam_grades = load_exam_grades(output_dir, year_q)
+  all_grades = load_all_grades(output_dir, year_q)
+  if not all_grades: return
+  gr = get_graderank_dict(all_grades)
   output_stats_path = os.path.join(output_dir, year_q)
   print "year_q:", year_q
 
@@ -132,55 +139,87 @@ def graph_gradetime(output_dir, year_q):
   
   # returns scaled grades
   # note duration is # commits, not endtimes-starttimes.
-  starttimes, endtimes, commit_lengths, mt_grades, f_grades = \
-      get_gradetimes(top_sims, posix_lookup, exam_grades)
+  stats_info = get_gradetimes(posix_lookup, gr)
+  make_grade_vs_time(output_dir, year_q, stats_info)
   
-  make_scatter_dur_time(output_dir, '%s_%s' % (year_q, "Midterms"),
-                mt_grades, starttimes, endtimes, commit_lengths)
+  grade_list = [ASSGT_3, ASSGT_6, MT_IND, F_IND]
+  for grade_name in grade_list:
+    make_scatter_dur_time(output_dir, year_q, grade_name, stats_info)
+    make_scatter_g_time(output_dir, year_q, grade_name, stats_info)
+
+  end_vs_start(output_dir, year_q, grade_list, stats_info)
+
+def graph_gradetime_multi(output_dir):
+  starttimes_multi = []
+  endtimes_multi = []
+  commit_lengths_multi = []
+  grades_multi = []
+
+  stats_info_multi = []
+  year_multi = []
+  year_q_list = []
+  for year_q_dirname in os.listdir(output_dir):
+    try:
+      year, q = year_q_dirname.split('_')
+      int(year), int(q)
+    except: continue
+
+    year_q = year_q_dirname
+    all_grades = load_all_grades(output_dir, year_q)
+    if not all_grades: continue
+    gr = get_graderank_dict(all_grades)
+    posix_lookup = load_posix_to_commit_ind(output_dir, year_q)
+    # returns scaled grades
+    # note duration is # commits, not endtimes-starttimes.
+    stats_info = get_gradetimes(posix_lookup, gr)
+    starttimes, endtimes, commit_length = stats_info[0], stats_info[1], stats_info[2]
+    new_info = [scale_days(starttimes, year_q), scale_days(endtimes, year_q)] + \
+        stats_info[2:]
+    if len(stats_info_multi) == 0:
+      map(lambda col: stats_info_multi.append(list(col)), new_info)
+    else:
+      for i in range(len(new_info)):
+        stats_info_multi[i] += list(new_info[i])
+              
+    year_multi += [year_q]*len(starttimes)
+    year_q_list.append(year_q_dirname)
+
+  year_q_list.sort()
+  print "year_q list:", year_q_list
+  stats_info = get_gradetimes(posix_lookup, gr)
   
-  make_scatter_dur_time(output_dir, '%s_%s' % (year_q, "Finals"),
-                f_grades, starttimes, endtimes, commit_lengths)
+  grade_list = [ASSGT_3, ASSGT_6, MT_IND, F_IND]
+  for grade_name in grade_list:
+    make_scatter_dur_time(output_dir, year_q_list, grade_name, stats_info_multi,
+        extra_arg=year_multi)
+    make_scatter_g_time(output_dir, year_q_list, grade_name, stats_info_multi,
+        extra_arg=year_multi)
 
-  make_scatter_g_time(output_dir, '%s_%s' % (year_q, "Midterms"),
-                mt_grades, starttimes, endtimes, commit_lengths)
-
-  make_scatter_g_time(output_dir, '%s_%s' % (year_q, "Finals"),
-                f_grades, starttimes, endtimes, commit_lengths)
-
-  end_vs_start(output_dir, '%s_%s' % (year_q, "Midterm_Finals"),
-                mt_grades, f_grades,
-                starttimes, endtimes, commit_lengths)
+  end_vs_start(output_dir, year_q_list, grade_list, stats_info_multi, extra_arg=year_multi)
 
 """
 Returns start, end, and ranges, and grades sorted by uname.
 """
-def get_gradetimes(top_sims, posix_lookup, exam_grades,
-                mt_max=120.0, f_max=180.0):
+def get_gradetimes(posix_lookup, gr):
   stats = []
-  unames = top_sims.keys()
+  unames = posix_lookup.keys()
+  #unames = top_sims.keys()
   unames.sort()
   for uname in unames:
-    if uname not in exam_grades:
+    if uname not in gr:
       print "skipping %s" % uname
       continue
     all_posix = [int(posix) for posix in posix_lookup[uname].keys()]
     start_posix, end_posix = min(all_posix), max(all_posix)
     commit_length = len(all_posix)
-    mt_grade, f_grade = exam_grades[uname][:2]
-    mt_grade, f_grade = mt_grade/mt_max, f_grade/f_max
-    stats.append((start_posix, end_posix, commit_length, mt_grade, f_grade))
+    gr_uname_abs = list(gr[uname][G_IND])
+    gr_uname_rank = list(gr[uname][R_IND])
+    #stats.append((start_posix, end_posix, commit_length, mt_grade, f_grade))
+    stats.append([start_posix, end_posix, commit_length] + \
+        gr_uname_abs + \
+        gr_uname_rank)
+            
   return zip(*stats)
-
-def get_time_info(top_sims, posix_lookup):
-  time_info = []
-  unames = top_sims.keys()
-  unames.sort()
-
-  for uname in unames:
-    set_stats = {}
-    # get start and end posix times..
-    time_info.append((start_posix, end_posix, range_posix))
-  return zip(*time_info)
   
 def get_grades(grade_dict, mt_max=120, f_max=180):
   grades = []
@@ -211,47 +250,140 @@ def get_grades(grade_dict, mt_max=120, f_max=180):
     #     np.array(set_grades1[grade1])
   return zip(*grades)
   
+def make_grade_vs_time(output_dir, year_q_list, stats_info):
+  year_q = '2014_1'
+  grade_ind_st = 3
+  starttimes, endtimes, commit_length = stats_info[0], stats_info[1], stats_info[2]
+  grades = stats_info[grade_ind_st:grade_ind_st+NUM_GRADES*R_IND]
+  rankings = stats_info[grade_ind_st+NUM_GRADES*R_IND:grade_ind_st+NUM_GRADES*2*R_IND]
+
+  try:
+    year_q_list += [] # check if list
+    # inds = range(len(grades))
+    # rankings = np.zeros(len(grades))
+    # for year_q_temp in year_q_list:
+    #   year_inds = filter(lambda i: extra_arg[i] == year_q_temp, inds)
+    #   curr_grades = [grades[i] for i in year_inds]
+    #   temp = get_rankings(curr_grades).tolist()
+    #   rankings[year_inds] = temp
+  except:
+    year_q = year_q_list
+    #rankings = get_rankings(grades)
+  print len(grades), len(rankings)
+  print "distribution of ranks", np.histogram(rankings)
+
+  fig, ax =plt.subplots(2,1, figsize=(7,10))
+  grades = np.array(grades)
+  rankings = np.array(rankings)
+  by_f_rank = np.argsort(rankings[F_IND,:])
+  grades = grades[:,by_f_rank]
+  rankings = rankings[:,by_f_rank]
+  labels = [GRADE_NAMES[x] for x in range(NUM_GRADES)]
+  vs = np.tile(np.arange(NUM_GRADES), (grades.shape[1],1)).T
+
+  assgt_thresh = 0.75
+  mt_thresh_r = 1.0
+  f_thresh_r = 0.70
+  m=set_colormap()
+  for x in range(grades.shape[1]):
+    if np.all(grades[:NUM_ASSGTS,x] > 0.85):
+      continue
+      pass
+    if rankings[MT_IND,x] > mt_thresh_r:
+      continue
+      pass
+    if rankings[F_IND,x] > f_thresh_r:
+      #continue
+      pass
+    ax[0].plot(vs[:,x], grades[:,x],
+        marker='^', ms=6,#mew=0,
+        c=m.to_rgba(rankings[F_IND,x]),alpha=0.2)
+    ax[1].plot(vs[:,x], rankings[:,x],
+        marker='^', ms=6,#mew=0,
+        c=m.to_rgba(rankings[F_IND,x]),alpha=0.2)
+
+  ax[0].set_ylim(-0.05,1.05)
+  ax[0].set_yticks(np.arange(0.0,1.0,0.1))
+  ax[0].set_ylabel('grades abs %s')
+  ax[1].set_ylim(-0.05,1.05)
+  ax[1].set_yticks(np.arange(0.0,1.0,0.1))
+  ax[1].set_ylabel('grades rank')
+  ax[0].set_xlim(0,NUM_GRADES+1)
+  ax[0].set_xticks(range(NUM_GRADES))
+  ax[0].set_xticklabels(labels)
+  ax[1].set_xlim(0,NUM_GRADES+1)
+  ax[1].set_xticks(range(NUM_GRADES))
+  ax[1].set_xticklabels(labels)
+
+  fig_dest = os.path.join(output_dir, '%s_allgrades.png' % year_q_list)
+  print "Saving", fig_dest
+  fig.savefig(fig_dest)
+  plt.close(fig)
+
+  
 """
 grades are out of 140 or 180 for mt and final, respectively
 converted_grades are ranks. e.g., top student is 1/#students
 """
-def make_scatter_dur_time(output_dir, name, grades, starttimes, endtimes, commit_length):
-  print "Creating figures for %s figure." % (name)
-  fig, ax =plt.subplots(2,2, figsize=(60,30),sharey=True)
-  rankings = get_rankings(grades)
+def make_scatter_dur_time(output_dir, year_q_list, grade_name, stats_info, extra_arg=None):
+  year_q = '2014_1'
+  grade_ind_st = 3
+  starttimes, endtimes, commit_length = stats_info[0], stats_info[1], stats_info[2]
+  grades = stats_info[grade_ind_st + grade_name]
+  rankings = stats_info[grade_ind_st + NUM_GRADES*R_IND + grade_name]
+
+  try:
+    year_q_list += [] # check if list
+    # inds = range(len(grades))
+    # rankings = np.zeros(len(grades))
+    # for year_q_temp in year_q_list:
+    #   year_inds = filter(lambda i: extra_arg[i] == year_q_temp, inds)
+    #   curr_grades = [grades[i] for i in year_inds]
+    #   temp = get_rankings(curr_grades).tolist()
+    #   rankings[year_inds] = temp
+  except:
+    year_q = year_q_list
+    #rankings = get_rankings(grades)
+  print len(grades), len(rankings)
+  print "distribution of ranks", np.histogram(rankings)
+  print "%s: Creating figures for %s figure." % (year_q_list, GRADE_NAMES[grade_name])
+
+  fig, ax =plt.subplots(2,2, figsize=(14,9))
+  starttimes, endtimes = np.array(starttimes), np.array(endtimes)
+  grades = np.array(grades)
+  rankings = np.array(rankings)
+  commit_length = np.array(commit_length)
   time_duration = np.array(endtimes) - np.array(starttimes)
+  g_sort = np.argsort(np.array(grades))
   
-  area=np.pi*10**2 # size of circle
+  area=np.pi*10 # size of circle
   #alpha: darker the circle, the more points of data there are
   m=set_colormap(grades)
   time_fstr = '%m/%d\n%H:%M'
 
   # graphing
-  label_fs = 30
-  tick_fs = 30
+  label_fs = 8
+  tick_fs = 8
+  shade = 0.5
   # absolute grades
-  ax[0,0].scatter(starttimes, time_duration, s=area, c=grades, lw=0, alpha=0.7)
-  ax[0,0].set_title('Duration vs start time (absolute grades)', fontsize=label_fs)
-  ax[0,1].scatter(endtimes, time_duration, s=area, c=grades, lw=0, alpha=0.7)
-  ax[0,1].set_title('Duration vs end time (absolute grades).', fontsize=label_fs)
+  ax[0,0].scatter(starttimes[g_sort], time_duration[g_sort], s=area, c=grades[g_sort], lw=0, alpha=shade)
+  ax[0,1].scatter(endtimes[g_sort], time_duration[g_sort], s=area, c=grades[g_sort], lw=0, alpha=shade)
   # student ranking
-  ax[1,0].scatter(starttimes, time_duration, s=area, c=rankings, lw=0, alpha=0.7)
+  ax[1,0].scatter(starttimes[g_sort], time_duration[g_sort], s=area, c=rankings[g_sort], lw=0, alpha=shade)
+  ax[1,1].scatter(endtimes[g_sort], time_duration[g_sort], s=area, c=rankings[g_sort], lw=0, alpha=shade)
+
+  ax[0,0].set_title('Duration vs start time (absolute grades)', fontsize=label_fs)
+  ax[0,1].set_title('Duration vs end time (absolute grades).', fontsize=label_fs)
   ax[1,0].set_title('Duration vs start time (rankings)', fontsize=label_fs)
-  ax[1,1].scatter(endtimes, time_duration, s=area, c=rankings, lw=0, alpha=0.7)
   ax[1,1].set_title('Duration vs end time (rankings).', fontsize=label_fs)
   # 
 
   ##### ylabels (duration)
   print "Setting Time durations."
-  ylims=ax[0,0].get_ylim()
-  new_ub=1625000 #adjust as needed
+  new_ub = day_length*12
   new_lb=0        #adjust as needed
   # all y axes are duration. :)
-  ax[0,0].set_ylim(new_lb, new_ub)
-  #ax2.set_ylim(new_lb, new_ub)
-  ax[1,0].set_ylim(new_lb, new_ub)
-  y_steps=6
-  posix_range=np.linspace(new_lb, new_ub, y_steps)
+  posix_range = np.arange(new_lb, new_ub, day_length/2)
   mod_t=[]
   for posix_t in posix_range:
     rem_d=posix_t%(86400)
@@ -259,6 +391,8 @@ def make_scatter_dur_time(output_dir, name, grades, starttimes, endtimes, commit
     rem_h=rem_d%3600
     hours=(rem_d-rem_h)/3600
     mod_t.append('%sd %shr' % (round(days), round(hours)))
+  ax[0,0].set_ylim(np.amin(posix_range), np.amax(posix_range))
+  ax[1,0].set_ylim(np.amin(posix_range), np.amax(posix_range))
   ax[0,0].set_yticks(posix_range)
   ax[0,0].set_yticklabels(mod_t,fontsize=tick_fs)
   ax[1,0].set_yticks(posix_range)
@@ -266,38 +400,46 @@ def make_scatter_dur_time(output_dir, name, grades, starttimes, endtimes, commit
   ax[0,0].set_ylabel('Assignment duration', fontsize=label_fs)
   ax[1,0].set_ylabel('Assignment duration', fontsize=label_fs)
 
+  ax[0,1].set_ylim(np.amin(posix_range), np.amax(posix_range))
+  ax[1,1].set_ylim(np.amin(posix_range), np.amax(posix_range))
+  ax[0,1].set_yticks(posix_range)
+  ax[0,1].set_yticklabels(mod_t,fontsize=tick_fs)
+  ax[1,1].set_yticks(posix_range)
+  ax[1,1].set_yticklabels(mod_t,fontsize=tick_fs)
+  ax[0,1].set_ylabel('Assignment duration', fontsize=label_fs)
+  ax[1,1].set_ylabel('Assignment duration', fontsize=label_fs)
+
   ##### xlabels (start time, then end time)
   print "Adding start time xlabel." # ax1 and ax3
   #new_xlb_st = 1350300000  #adjust as needed
-  new_xlb_st = mktime(datetime(2012,10,15,0,0,tzinfo=pst).timetuple())
-  new_xub_st = mktime(datetime(2012,10,25,0,0,tzinfo=pst).timetuple())
-  x_steps = 10
-  posix_xrange_st = np.linspace(new_xlb_st, new_xub_st, x_steps)
-  xlabels_st = [posix_to_time(posix_t, format_str=time_fstr) \
+
+  #posix_xrange_st = np.linspace(new_xlb_st, new_xub_st, x_steps)
+  posix_xrange_st = get_day_range(year_q, plus_minus=[-1,1], incr=day_length/2)
+  xlabels_st = [posix_to_datetime(posix_t, format_str=time_fstr) \
             for posix_t in posix_xrange_st]
-  ax[0,0].set_xlim(new_xlb_st, new_xub_st)
+  xlabels_st = ['%s %s' % (get_t_minus(posix_t, year_q), posix_to_time(posix_t)) \
+            for posix_t in posix_xrange_st]
+  ax[0,0].set_xlim(np.amin(posix_xrange_st), np.amax(posix_xrange_st))
   ax[0,0].set_xticks(posix_xrange_st)
-  ax[0,0].set_xticklabels(xlabels_st, rotation=45, fontsize=tick_fs)
-  ax[1,0].set_xlim(new_xlb_st, new_xub_st)
+  ax[0,0].set_xticklabels(xlabels_st, rotation=90, fontsize=tick_fs)
+  ax[1,0].set_xlim(np.amin(posix_xrange_st), np.amax(posix_xrange_st))
   ax[1,0].set_xticks(posix_xrange_st)
-  ax[1,0].set_xticklabels(xlabels_st, rotation=45, fontsize=tick_fs)
+  ax[1,0].set_xticklabels(xlabels_st, rotation=90, fontsize=tick_fs)
   # add labels
   ax[1,0].set_xlabel('Start times.', fontsize=label_fs)
   
   print "Adding end time label." # xlabel on bottom subplots
-  new_xlb_end = mktime(datetime(2012,10,21,15,15,tzinfo=pst).timetuple())
-  #new_xub_end = 1351500000  #adjust as needed
   # a day later than all_end_time
-  new_xub_end = mktime(datetime(2012,10,25,15,15,tzinfo=pst).timetuple())
-  posix_xrange_end = np.linspace(new_xlb_end, new_xub_end, x_steps)
-  xlabels_end = [posix_to_time(posix_t, format_str=time_fstr) \
+  #posix_xrange_end = np.linspace(new_xlb_end, new_xub_end, x_steps)
+  posix_xrange_end = get_day_range(year_q, plus_minus=[5,1], incr=day_length/2)
+  xlabels_end = ['%s %s' % (get_t_minus(posix_t, year_q), posix_to_time(posix_t)) \
             for posix_t in posix_xrange_end]
-  ax[0,1].set_xlim(new_xlb_end, new_xub_end)
+  ax[0,1].set_xlim(np.amin(posix_xrange_end), np.amax(posix_xrange_end))
   ax[0,1].set_xticks(posix_xrange_end)
-  ax[0,1].set_xticklabels(xlabels_end, rotation=45, fontsize=tick_fs)
-  ax[1,1].set_xlim(new_xlb_end, new_xub_end)
+  ax[0,1].set_xticklabels(xlabels_end, rotation=90, fontsize=tick_fs)
+  ax[1,1].set_xlim(np.amin(posix_xrange_end), np.amax(posix_xrange_end))
   ax[1,1].set_xticks(posix_xrange_end)
-  ax[1,1].set_xticklabels(xlabels_end, rotation=45, fontsize=tick_fs)
+  ax[1,1].set_xticklabels(xlabels_end, rotation=90, fontsize=tick_fs)
   # add labels
   ax[1,1].set_xlabel('End times.', fontsize=label_fs)
 
@@ -307,39 +449,70 @@ def make_scatter_dur_time(output_dir, name, grades, starttimes, endtimes, commit
   cbar_ax = fig.add_axes([0.95, 0.07, 0.02, 0.8])
   cbar_ax.tick_params(labelsize=tick_fs)
   fig.colorbar(m, cax=cbar_ax)
-  fname = os.path.join(output_dir, '%s.png' % name)
+  try:
+    year_q_list += []
+    fname = os.path.join(output_dir, '%s_gradetime_%s.png' % ('_'.join(year_q_list), GRADE_NAMES[grade_name]))
+  except:
+    fname = os.path.join(output_dir, '%s_gradetime_%s.png' % (year_q, GRADE_NAMES[grade_name]))
   print fname
   fig.savefig(fname) 
+  plt.close(fig)
 
-def make_scatter_g_time(output_dir, name, grades, starttimes, endtimes, commit_length):
-  name = '%s_vs_grade' % name
-  print "Creating figures for %s figure." % (name)
-  fig, ax =plt.subplots(2,3, figsize=(60,45))
-  rankings = get_rankings(grades)
+def make_scatter_g_time(output_dir, year_q_list, grade_name, stats_info, extra_arg=None):
+  print "%s: Creating figures for %s figure." % (year_q_list, GRADE_NAMES[grade_name])
+  year_q = '2014_1'
+  grade_ind_st = 3
+  starttimes, endtimes, commit_length = stats_info[0], stats_info[1], stats_info[2]
+  grades = stats_info[grade_ind_st + grade_name]
+  rankings = stats_info[grade_ind_st + NUM_GRADES*R_IND + grade_name]
+  print "for g", np.histogram(rankings, 10)
+
+  try:
+    year_q_list += [] # check if list
+    # inds = range(len(grades))
+    # rankings = np.zeros(len(grades))
+    # for year_q_temp in year_q_list:
+    #   year_inds = filter(lambda i: extra_arg[i] == year_q_temp, inds)
+    #   curr_grades = [grades[i] for i in year_inds]
+    #   temp = get_rankings(curr_grades).tolist()
+    #   rankings[year_inds] = temp
+  except:
+    year_q = year_q_list
+    #rankings = get_rankings(grades)
+
+  fig, ax =plt.subplots(2,3, figsize=(14,10))
+  starttimes, endtimes = np.array(starttimes), np.array(endtimes)
+  grades = np.array(grades)
+  rankings = np.array(rankings)
+  commit_length = np.array(commit_length)
+  time_durations = np.array(endtimes) - np.array(starttimes)
   time_duration = np.array(endtimes) - np.array(starttimes)
+  g_sort = np.argsort(-np.array(rankings))
   
-  area=np.pi*10**2 # size of circle
+  area=np.pi*10 # size of circle
   #alpha: darker the circle, the more points of data there are
   m=set_colormap(grades)
   time_fstr = '%m/%d\n%H:%M'
 
   # graphing
-  label_fs = 30
-  tick_fs = 30
+  label_fs = 8
+  tick_fs = 8
+  shade = 0.5
 
   # absolute grades
-  ax[0,0].scatter(starttimes, grades, s=area, c=grades, lw=0, alpha=0.7)
-  ax[0,0].set_title('Grades vs start time (absolute grades)', fontsize=label_fs)
-  ax[0,1].scatter(endtimes, grades, s=area, c=grades, lw=0, alpha=0.7)
-  ax[0,1].set_title('Grades vs end time (absolute grades).', fontsize=label_fs)
-  ax[0,2].scatter(time_duration, grades, s=area, c=grades, lw=0, alpha=0.7)
-  ax[0,2].set_title('Grades vs duration (absolute grades).', fontsize=label_fs)
+  ax[0,0].scatter(starttimes[g_sort], grades[g_sort], s=area, c=grades[g_sort], lw=0, alpha=shade)
+  ax[0,1].scatter(endtimes[g_sort], grades[g_sort], s=area, c=grades[g_sort], lw=0, alpha=shade)
+  ax[0,2].scatter(time_duration[g_sort], grades[g_sort], s=area, c=grades[g_sort], lw=0, alpha=shade)
   # student ranking
-  ax[1,0].scatter(starttimes, grades, s=area, c=rankings, lw=0, alpha=0.7)
+  ax[1,0].scatter(starttimes[g_sort], rankings[g_sort], s=area, c=rankings[g_sort], lw=0, alpha=shade)
+  ax[1,1].scatter(endtimes[g_sort], rankings[g_sort], s=area, c=rankings[g_sort], lw=0, alpha=shade)
+  ax[1,2].scatter(time_duration[g_sort], rankings[g_sort], s=area, c=rankings[g_sort], lw=0, alpha=shade)
+
+  ax[0,0].set_title('Grades vs start time (absolute grades)', fontsize=label_fs)
+  ax[0,1].set_title('Grades vs end time (absolute grades).', fontsize=label_fs)
+  ax[0,2].set_title('Grades vs duration (absolute grades).', fontsize=label_fs)
   ax[1,0].set_title('Grades vs start time (rankings)', fontsize=label_fs)
-  ax[1,1].scatter(endtimes, grades, s=area, c=rankings, lw=0, alpha=0.7)
   ax[1,1].set_title('Grades vs end time (rankings).', fontsize=label_fs)
-  ax[1,2].scatter(time_duration, grades, s=area, c=rankings, lw=0, alpha=0.7)
   ax[1,2].set_title('Grades vs duration (rankings).', fontsize=label_fs)
   # 
 
@@ -353,8 +526,39 @@ def make_scatter_g_time(output_dir, name, grades, starttimes, endtimes, commit_l
     ax_r.set_ylabel('Grade (ranking)', fontsize=label_fs)
 
   ##### xlabels (duration, start time, and end time)
+  print "Adding start time xlabel." # ax1 and ax3
+  #posix_xrange_st = np.linspace(new_xlb_st, new_xub_st, x_steps)
+  posix_xrange_st = get_day_range(year_q, plus_minus=[-1,1], incr=day_length/2)
+  xlabels_st = [posix_to_datetime(posix_t, format_str=time_fstr) \
+            for posix_t in posix_xrange_st]
+  xlabels_st = ['%s %s' % (get_t_minus(posix_t, year_q), posix_to_time(posix_t)) \
+            for posix_t in posix_xrange_st]
+  ax[0,0].set_xlim(np.amin(posix_xrange_st), np.amax(posix_xrange_st))
+  ax[0,0].set_xticks(posix_xrange_st)
+  ax[0,0].set_xticklabels(xlabels_st, rotation=90, fontsize=tick_fs)
+  ax[1,0].set_xlim(np.amin(posix_xrange_st), np.amax(posix_xrange_st))
+  ax[1,0].set_xticks(posix_xrange_st)
+  ax[1,0].set_xticklabels(xlabels_st, rotation=90, fontsize=tick_fs)
+  # add labels
+  ax[1,0].set_xlabel('Start times.', fontsize=label_fs)
+  
+  print "Adding end time label." # xlabel on bottom subplots
+  # a day later than all_end_time
+  #posix_xrange_end = np.linspace(new_xlb_end, new_xub_end, x_steps)
+  posix_xrange_end = get_day_range(year_q, plus_minus=[5,1], incr=day_length/2)
+  xlabels_end = ['%s %s' % (get_t_minus(posix_t, year_q), posix_to_time(posix_t)) \
+            for posix_t in posix_xrange_end]
+  ax[0,1].set_xlim(np.amin(posix_xrange_end), np.amax(posix_xrange_end))
+  ax[0,1].set_xticks(posix_xrange_end)
+  ax[0,1].set_xticklabels(xlabels_end, rotation=90, fontsize=tick_fs)
+  ax[1,1].set_xlim(np.amin(posix_xrange_end), np.amax(posix_xrange_end))
+  ax[1,1].set_xticks(posix_xrange_end)
+  ax[1,1].set_xticklabels(xlabels_end, rotation=90, fontsize=tick_fs)
+  # add labels
+  ax[1,1].set_xlabel('End times.', fontsize=label_fs)
+
   print "Setting Time durations."
-  new_ub=1625000 #adjust as needed
+  new_ub = np.amax(posix_xrange_end) - np.amin(posix_xrange_st)
   new_lb=0        #adjust as needed
   x_steps=6
   posix_range=np.linspace(new_lb, new_ub, x_steps)
@@ -374,106 +578,112 @@ def make_scatter_g_time(output_dir, name, grades, starttimes, endtimes, commit_l
   ax[0,2].set_xlabel('Assignment duration', fontsize=label_fs)
   ax[1,2].set_xlabel('Assignment duration', fontsize=label_fs)
 
-  print "Adding start time xlabel." # ax1 and ax3
-  #new_xlb_st = 1350300000  #adjust as needed
-  new_xlb_st = mktime(datetime(2012,10,15,0,0,tzinfo=pst).timetuple())
-  new_xub_st = mktime(datetime(2012,10,25,0,0,tzinfo=pst).timetuple())
-  x_steps = 10
-  posix_xrange_st = np.linspace(new_xlb_st, new_xub_st, x_steps)
-  xlabels_st = [posix_to_time(posix_t, format_str=time_fstr) \
-            for posix_t in posix_xrange_st]
-  ax[0,0].set_xlim(new_xlb_st, new_xub_st)
-  ax[0,0].set_xticks(posix_xrange_st)
-  ax[0,0].set_xticklabels(xlabels_st, rotation=45, fontsize=tick_fs)
-  ax[1,0].set_xlim(new_xlb_st, new_xub_st)
-  ax[1,0].set_xticks(posix_xrange_st)
-  ax[1,0].set_xticklabels(xlabels_st, rotation=45, fontsize=tick_fs)
-  # add labels
-  ax[1,0].set_xlabel('Start times.', fontsize=label_fs)
-  
-  print "Adding end time label." # xlabel on bottom subplots
-  new_xlb_end = mktime(datetime(2012,10,21,15,15,tzinfo=pst).timetuple())
-  #new_xub_end = 1351500000  #adjust as needed
-  # a day later than all_end_time
-  new_xub_end = mktime(datetime(2012,10,25,15,15,tzinfo=pst).timetuple())
-  posix_xrange_end = np.linspace(new_xlb_end, new_xub_end, x_steps)
-  xlabels_end = [posix_to_time(posix_t, format_str=time_fstr) \
-            for posix_t in posix_xrange_end]
-  ax[0,1].set_xlim(new_xlb_end, new_xub_end)
-  ax[0,1].set_xticks(posix_xrange_end)
-  ax[0,1].set_xticklabels(xlabels_end, rotation=45, fontsize=tick_fs)
-  ax[1,1].set_xlim(new_xlb_end, new_xub_end)
-  ax[1,1].set_xticks(posix_xrange_end)
-  ax[1,1].set_xticklabels(xlabels_end, rotation=45, fontsize=tick_fs)
-  # add labels
-  ax[1,1].set_xlabel('End times.', fontsize=label_fs)
-
   # save figure
   fig.tight_layout()
   fig.subplots_adjust(right=0.94)
   cbar_ax = fig.add_axes([0.95, 0.07, 0.02, 0.8])
   cbar_ax.tick_params(labelsize=tick_fs)
   fig.colorbar(m, cax=cbar_ax)
-  fname = os.path.join(output_dir, '%s.png' % name)
+  try:
+    year_q_list += []
+    fname = os.path.join(output_dir, '%s_gradetime_%s_vs_grade.png' % ('_'.join(year_q_list), GRADE_NAMES[grade_name]))
+  except:
+    fname = os.path.join(output_dir, '%s_gradetime_%s_vs_grade.png' % (year_q, GRADE_NAMES[grade_name]))
   print fname
   fig.savefig(fname) 
+  plt.close(fig)
 
-def end_vs_start(output_dir, name, mt_grades, f_grades, starttimes, endtimes, commit_lengths):
-  print "Creating figures for %s figure." % (name)
-  fig, axs =plt.subplots(4,2, figsize=(44,80))
-  mt_rankings = get_rankings(mt_grades)
-  f_rankings = get_rankings(f_grades)
-  commit_lengths = np.array(commit_lengths)
+def end_vs_start(output_dir, year_q_list, grade_names, stats_info, extra_arg=None):
+  print "%s: Creating figures for tot figure." % (year_q_list)
+  year_q = '2014_1'
+  try:
+    year_q_list += []
+  except:
+    year_q = year_q_list
+  print "year_q", year_q_list
+  grade_ind_st = 3
+  starttimes, endtimes, commit_length = stats_info[0], stats_info[1], stats_info[2]
+
+  fig, axs =plt.subplots(3, 2*len(grade_names), figsize=(2*7*len(grade_names)+1,14))
+  starttimes, endtimes = np.array(starttimes), np.array(endtimes)
+  commit_lengths = np.array(commit_length)
   time_durations = np.array(endtimes) - np.array(starttimes)
   
-  area=np.pi*10**2 # size of circle
+  area=np.pi*10 # size of circle
   #alpha: darker the circle, the more points of data there are
-  m=set_colormap(mt_grades) # doesn't really matter which one
+  m=set_colormap()
   time_fstr = '%m/%d\n%H:%M'
 
   # graphing
-  label_fs = 30
-  tick_fs = 30
-  axs[0,0].scatter(endtimes, starttimes, s=area, c=mt_grades, lw=0, alpha=0.7)
-  axs[0,0].set_title('Start vs end time (absolute MT grades)', fontsize=label_fs)
-  axs[0,1].scatter(endtimes, starttimes, s=area, c=f_grades, lw=0, alpha=0.7)
-  axs[0,1].set_title('Start vs end time (absolute Final grades)', fontsize=label_fs)
-  axs[1,0].scatter(endtimes, starttimes, s=area, c=mt_rankings, lw=0, alpha=0.7)
-  axs[1,0].set_title('Start vs end time (MT rankings)', fontsize=label_fs)
-  axs[1,1].scatter(endtimes, starttimes, s=area, c=f_rankings, lw=0, alpha=0.7)
-  axs[1,1].set_title('Start vs end time (Final rankings)', fontsize=label_fs)
-  axs[2,0].scatter(commit_lengths, starttimes, s=area,c=mt_rankings,lw=0,alpha=0.7)
-  axs[2,0].set_title('Start time vs commit length (MT rankings)', fontsize=label_fs)
-  axs[2,1].scatter(commit_lengths, starttimes, s=area,c=f_rankings,lw=0,alpha=0.7)
-  axs[2,0].set_title('Start time vs commit length (Final rankings)', fontsize=label_fs)
-  axs[3,0].scatter(commit_lengths, time_durations, s=area,c=mt_rankings,lw=0,alpha=0.7)
-  axs[3,0].set_title('Time spent vs commit length (MT rankings)', fontsize=label_fs)
-  axs[3,1].scatter(commit_lengths, time_durations, s=area,c=f_rankings,lw=0,alpha=0.7)
-  axs[3,1].set_title('Time spent vs commit length (Final rankings)', fontsize=label_fs)
+  label_fs = 8
+  tick_fs = 8
+  shade = 0.5
 
-  # start time bounds
-  new_ylb = mktime(datetime(2012,10,15,0,0,tzinfo=pst).timetuple())
-  new_yub = mktime(datetime(2012,10,25,0,0,tzinfo=pst).timetuple())
-  # end time bounds
-  new_xlb = mktime(datetime(2012,10,21,15,15,tzinfo=pst).timetuple())
-  new_xub = mktime(datetime(2012,10,25,15,15,tzinfo=pst).timetuple())
+  for i, grade_name in enumerate(grade_names):
+    grades = np.array(stats_info[grade_ind_st + grade_name])
+    rankings = np.array(stats_info[grade_ind_st + NUM_GRADES*R_IND + grade_name])
+    g_sort = np.argsort(np.array(rankings))
+    axs[0,2*i].scatter(endtimes[g_sort], starttimes[g_sort], s=area, c=grades[g_sort], lw=0, alpha=shade)
+    axs[0,2*i].set_title('Start vs end time (abs %s)' % GRADE_NAMES[grade_name], fontsize=label_fs)
+    axs[0,2*i+1].scatter(endtimes[g_sort], starttimes[g_sort], s=area, c=rankings[g_sort], lw=0, alpha=shade)
+    axs[0,2*i+1].set_title('Start vs end time (rank %s)' % GRADE_NAMES[grade_name], fontsize=label_fs)
+    axs[1,2*i].scatter(commit_lengths[g_sort], starttimes[g_sort], s=area,c=grades[g_sort],lw=0,alpha=shade)
+    axs[1,2*i].set_title('Start time vs commit length (abs %s)' % GRADE_NAMES[grade_name], fontsize=label_fs)
+    axs[1,2*i+1].scatter(commit_lengths[g_sort], starttimes[g_sort], s=area,c=rankings[g_sort],lw=0,alpha=shade)
+    axs[1,2*i+1].set_title('Start time vs commit length (rank %s)' % GRADE_NAMES[grade_name], fontsize=label_fs)
+    axs[2,2*i].scatter(commit_lengths[g_sort], time_durations[g_sort], s=area,c=grades[g_sort],lw=0,alpha=shade)
+    axs[2,2*i].set_title('Time spent vs commit length (abs %s)' % GRADE_NAMES[grade_name], fontsize=label_fs)
+    axs[2,2*i+1].scatter(commit_lengths[g_sort], time_durations[g_sort], s=area,c=rankings[g_sort],lw=0,alpha=shade)
+    axs[2,2*i+1].set_title('Time spent vs commit length (rank %s)' % GRADE_NAMES[grade_name], fontsize=label_fs)
+
   ##### ylabels
   print "Adding ylabel start time."
   y_steps = 10
-  posix_yrange = np.linspace(new_ylb, new_yub, y_steps)
-  ylabels = [posix_to_time(posix_t, format_str=time_fstr) \
+  #posix_yrange = np.linspace(new_ylb, new_yub, y_steps)
+  posix_yrange = get_day_range(year_q, plus_minus=[0,0], incr=day_length)
+  ylabels = ['%s\n%s' % (get_t_minus(posix_t, year_q), posix_to_time(posix_t)) \
             for posix_t in posix_yrange]
-  for ax in [axs[0,0],axs[0,1],axs[1,0],axs[1,1],axs[2,0],axs[2,1]]:
+  for i in range(2*(len(grade_names))):
     #ax.set_ylim(new_ylb, new_yub)
-    ax.set_ylim(new_yub, new_ylb) # reverse so that last time is on bottom
-    ax.set_yticks(posix_yrange[::-1])
-    ax.set_yticklabels(ylabels[::-1], rotation=45, fontsize=tick_fs)
-  # add labels
+    # reverse so that last time is on bottom
+    axs[0,i].set_ylim(np.amax(posix_yrange), np.amin(posix_yrange))
+    axs[1,i].set_ylim(np.amax(posix_yrange), np.amin(posix_yrange))
+    axs[2,i].set_ylim(np.amax(posix_yrange), np.amin(posix_yrange))
+    axs[0,i].set_yticks(posix_yrange[::-1])
+    axs[1,i].set_yticks(posix_yrange[::-1])
+    axs[2,i].set_yticks(posix_yrange[::-1])
+    axs[0,i].set_yticklabels(ylabels[::-1], rotation=0, fontsize=tick_fs)
+    axs[1,i].set_yticklabels(ylabels[::-1], rotation=0, fontsize=tick_fs)
+    axs[2,i].set_yticklabels(ylabels[::-1], rotation=0, fontsize=tick_fs)
+
+  # add labels (on the left side of the first set)
   axs[0,0].set_ylabel('Start times', fontsize=label_fs)
   axs[1,0].set_ylabel('Start times', fontsize=label_fs)
-  axs[2,0].set_ylabel('Start times', fontsize=label_fs)
+
+  ##### xlabels
+  print "Adding xlabel end time."
+  x_steps = 10
+  #posix_xrange = np.linspace(new_xlb, new_xub, x_steps)
+  posix_xrange = get_day_range(year_q, plus_minus=[5,1], incr=day_length/2)
+  xlabels = ['%s\n%s' % (get_t_minus(posix_t, year_q), posix_to_time(posix_t)) \
+            for posix_t in posix_xrange]
+  for i in range(2*(len(grade_names))):
+    #ax.set_ylim(new_ylb, new_yub)
+    axs[0,i].set_xlim(np.amin(posix_xrange), np.amax(posix_xrange))
+    axs[0,i].set_xticks(posix_xrange)
+    axs[0,i].set_xticklabels(xlabels, rotation=90, fontsize=tick_fs)
+    axs[1,i].set_xlim(0, 1200) #axs[2,0].get_xlim()[1])
+    axs[2,i].set_xlim(0, 1200) #axs[3,0].get_xlim()[1])
+
+  # add labels
+  for i in range(2*(len(grade_names))):
+    grade_name = grade_names[i/2]
+    axs[0,i].set_xlabel('End times (%s)' % (GRADE_NAMES[grade_name]), fontsize=label_fs)
+    axs[1,i].set_xlabel('Commit lengths', fontsize=label_fs)
+    axs[2,i].set_xlabel('Commit lengths', fontsize=label_fs)
+
   # duration stuff
-  time_ub = new_xub - new_ylb # end time to start time
+  time_ub = np.amax(posix_yrange) - np.amin(posix_xrange)
   time_lb=0        #adjust as needed
   posix_range=np.linspace(time_lb, time_ub, 6) # y_steps
   mod_t=[]
@@ -484,39 +694,13 @@ def end_vs_start(output_dir, name, mt_grades, f_grades, starttimes, endtimes, co
     rem_d=posix_t%(86400)
     mod_t.append('%sd %shr' % (round(days), round(hours)))
   # reverse axes
-  axs[3,0].set_ylim(time_ub, time_lb)
-  axs[3,1].set_ylim(time_ub, time_lb)
-  axs[3,0].set_yticks(posix_range[::-1])
-  axs[3,1].set_yticks(posix_range[::-1])
-  axs[3,0].set_yticklabels(mod_t[::-1], fontsize=tick_fs)
-  axs[3,1].set_yticklabels(mod_t[::-1], fontsize=tick_fs)
-  axs[3,0].set_ylabel('Time duration', fontsize=label_fs)
-  axs[3,1].set_ylabel('Time duration', fontsize=label_fs)
+  for i in range(2*(len(grade_names))):
+    axs[2,i].set_ylim(time_ub, time_lb)
+    axs[2,i].set_yticks(posix_range[::-1])
+    axs[2,i].set_yticklabels(mod_t[::-1], fontsize=tick_fs)
+  # add labels (on the left side of the first set)
+  axs[2,0].set_ylabel('Time duration', fontsize=label_fs)
 
-
-  ##### xlabels
-  print "Adding xlabel end time."
-  x_steps = 10
-  posix_xrange = np.linspace(new_xlb, new_xub, x_steps)
-  xlabels = [posix_to_time(posix_t, format_str=time_fstr) \
-            for posix_t in posix_xrange]
-  for ax in [axs[0,0],axs[0,1],axs[1,0],axs[1,1]]:
-    #ax.set_ylim(new_ylb, new_yub)
-    ax.set_xlim(new_xlb, new_xub)
-    ax.set_xticks(posix_xrange)
-    ax.set_xticklabels(xlabels, rotation=45, fontsize=tick_fs)
-  axs[2,0].set_xlim(0, axs[2,0].get_xlim()[1])
-  axs[2,1].set_xlim(0, axs[2,1].get_xlim()[1])
-  axs[3,0].set_xlim(0, axs[3,0].get_xlim()[1])
-  axs[3,1].set_xlim(0, axs[3,1].get_xlim()[1])
-
-  # add labels
-  axs[1,0].set_xlabel('End times (Midterm)', fontsize=label_fs)
-  axs[1,1].set_xlabel('End times (Final)', fontsize=label_fs)
-  axs[2,0].set_xlabel('Commit lengths', fontsize=label_fs)
-  axs[2,1].set_xlabel('Commit lengths', fontsize=label_fs)
-  axs[3,0].set_xlabel('Commit lengths', fontsize=label_fs)
-  axs[3,1].set_xlabel('Commit lengths', fontsize=label_fs)
   
   # save figure
   fig.tight_layout()
@@ -524,9 +708,15 @@ def end_vs_start(output_dir, name, mt_grades, f_grades, starttimes, endtimes, co
   cbar_ax = fig.add_axes([0.95, 0.07, 0.02, 0.8])
   cbar_ax.tick_params(labelsize=tick_fs)
   fig.colorbar(m, cax=cbar_ax)
-  fname = os.path.join(output_dir, '%s.png' % name)
+  try:
+    year_q_list += []
+    fname = os.path.join(output_dir, '%s_gradetime_%s.png' % ('_'.join(year_q_list), 'all'))
+  except:
+    fname = os.path.join(output_dir, '%s_gradetime_%s.png' % (year_q, 'all'))
   print fname
   fig.savefig(fname) 
+  plt.close(fig)
+  
 
 """
 sort_types:
@@ -539,15 +729,17 @@ COMMIT_TYPE = 0
 GRADE_TYPE = 1
 START_TYPE = 2
 END_TYPE = 3
-def plot_times_sorted(output_dir, year_q, cluster=True):
+def plot_times_sorted(output_dir, year_q, cluster=False):
   ################ load points for each user ###############
-  top_sims = load_top_sims_from_log(output_dir, year_q)
+  #top_sims = load_top_sims_from_log(output_dir, year_q)
+  top_sims = {}
   posix_lookup = load_posix_to_commit_ind(output_dir, year_q)
   # all_points[uname][posix_time] -> addtl data
   all_points = get_points(top_sims, posix_lookup, cluster=cluster)
 
-  exam_grades = load_exam_grades(output_dir, year_q)
-  mt_gr, f_gr = get_graderank_dict(exam_grades)
+  all_grades = load_all_grades(output_dir, year_q)
+  if not all_grades: return
+  gr = get_graderank_dict(all_grades)
   print "year_q:", year_q
   all_stats = []
   # get PER USER stats (not actual plot points)
@@ -556,20 +748,14 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
     uname_stats = []
     all_posix = posix_lookup[uname].keys()
     start_posix, end_posix, num_commits = min(all_posix), max(all_posix), len(all_posix)
-    mt_gr_uname, f_gr_uname = (1.0,1.0), (1.0,1.0)
-    if uname not in mt_gr:
-      continue
-    else:
-      mt_gr_uname = mt_gr[uname]
-    if uname not in f_gr:
-      continue
-    else:
-      f_gr_uname = f_gr[uname]
+    if uname not in gr: continue
+    gr_uname_abs = list(gr[uname][G_IND])
+    gr_uname_rank = list(gr[uname][R_IND])
+
     uname_stats.append(
-        (start_posix, end_posix, num_commits,
-         mt_gr_uname[0], mt_gr_uname[1],
-         f_gr_uname[0], f_gr_uname[1],
-         int(uname)))
+        [start_posix, end_posix, num_commits,int(uname)] + \
+            gr_uname_abs + \
+            gr_uname_rank)
     all_stats += uname_stats
 
     if cluster:
@@ -581,24 +767,26 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
   # creates 2 x n/2 (two columns), vs default n/2 x 2 (two rows)
   use_vertical = True
 
-  graph_options = list(itertools.product((True, False), (True, False),
-                      (False, True),
-                      (GRADE_TYPE, COMMIT_TYPE, START_TYPE, END_TYPE)))
-  for use_mt, use_rank, normalize_flag, sort_type in graph_options:
-    print "norm flag: %s, use_mt: %s, rank: %s, sort type: %s" % \
-        (normalize_flag, use_mt, use_rank, sort_type)
+  graph_options = list(itertools.product(
+                      [ASSGT_3, ASSGT_6, MT_IND, F_IND],
+                      (GRADE_TYPE, COMMIT_TYPE, START_TYPE, END_TYPE),
+                      range(2),
+                      (False, True)))
+  for grade_name, sort_type, grade_type, normalize_flag in graph_options:
+    print "%s, norm flag: %s, assgt: %s, %s, sort type: %s" % \
+        (year_q, normalize_flag, GRADE_NAMES[grade_name], GRADE_TYPES[grade_type], sort_type)
     # indexing variables uname stats
     start_ind, end_ind, length_ind = 0, 1, 2
-    mt_g_ind, mt_r_ind = 3, 4
-    f_g_ind, f_r_ind = 5, 6
-    uname_ind = 7
-    grade_ind = mt_g_ind + 2*int(not use_mt) + int(use_rank)
+    uname_ind = 3
+    grade_ind_st = 4
+    grade_offset = NUM_GRADES*grade_type + grade_name
+    grade_ind = grade_ind_st + grade_offset
 
     col_to_sort = all_stats_np[:,length_ind]
     if sort_type == GRADE_TYPE:
       col_to_sort = -all_stats_np[:,grade_ind] # need reverse rank/grade
     elif sort_type == COMMIT_TYPE:
-      pass
+      col_to_sort = all_stats_np[:,length_ind]
     elif sort_type == START_TYPE:
       col_to_sort = all_stats_np[:,start_ind]
     elif sort_type == END_TYPE:
@@ -611,6 +799,15 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
     numplots = 10 # even number
     num_half = numplots/2
     set_size = len(sort_inds)/numplots
+    # if sort_type == GRADE_TYPE and grade_type == G_IND:
+    #   # need set sizes based on grade ([0.9,1.0), etc.)
+    #   set_size = [0]*10
+    #   prev = 3.0
+    #   for i in range(10):
+    #     curr = 1 - i/float(10)
+    #     inds = np.nonzero(sort_col >= curr and kkk
+    #     set_size = len(np.nonzero(sort_col >= prev and sort_col < i))
+
     # to compare best to worst
     # 100 % ------> 50%
     #   0 % <------ 50%
@@ -632,7 +829,7 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
 
     incr = incr_length
     posix_range = np.arange(all_start_time, all_end_time, step=incr)
-    xlabels = [posix_to_time(posix_t) for posix_t in posix_range]
+    xlabels = [posix_to_datetime(posix_t) for posix_t in posix_range]
 
     # indexing variables for all commit stats
     posix_ind, commit_ind = 0, 1
@@ -709,9 +906,9 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
       w_grps.append(w_grp_grp)
               
     ################ plot points for each user ###############
-    max_ms = 18
+    max_ms = 50
     if cluster:
-      max_ms = 50
+      max_ms = 100
     # num rows, num cols, width, height
     if use_vertical:
       fig, ax_all = plt.subplots(num_half, 2, figsize=(30, 15*num_half))
@@ -746,26 +943,36 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
     ######## create an aggregate figure with everything
     use_hist = True
     use_stack = True
-    use_interval = True
+    use_interval = False
     use_outline = False
-    use_exclusive = True
+    use_exclusive = False
     exclusive_range = [0, 9]
     fig_aggr = plt.figure(figsize=(10,10))
     ax_aggr = plt.gca()
-    posix_range_aggr = np.arange(all_start_time-incr, all_end_time+incr, step=incr)
-    xlabels_aggr = [posix_to_time(posix_t) for posix_t in posix_range_aggr]
-    # histogram widths and start points
     lefts = []
     num_bins = numplots
-    for lower_time in posix_range_aggr[0::2]:
-      bar_range = np.linspace(lower_time+incr*0.1, lower_time+2*incr*0.85,num=num_bins)#[:-1])
-      lefts.append(bar_range)
+    if not normalize_flag:
+      posix_range_aggr = np.arange(all_start_time-incr, all_end_time+incr, step=incr)
+      xlabels_aggr = [posix_to_datetime(posix_t) for posix_t in posix_range_aggr]
+      for lower_time in posix_range_aggr[0::2]:
+        bar_range = np.linspace(lower_time+incr*0.1, lower_time+2*incr*0.85,num=num_bins)#[:-1])
+        lefts.append(bar_range)
+    else:
+      time_range_aggr = np.arange(0.0, 1.1, step=0.1)
+      xlabels_aggr = time_range_aggr
+      for lower_bound in time_range_aggr[:-1]:
+        bar_range = np.linspace(lower_bound + 0.1*0.1, lower_bound + 0.1*0.85, num=num_bins)
+        lefts.append(bar_range)
+    # histogram widths and start points
     bottoms = [0.1*np.ones(l.shape) for l in lefts]
     bar_width_abs = lefts[0][1] - lefts[0][0]
     weight_by_time_int = []
     max_cluster_size_time_int = []
     data_by_time_int = []
-    time_time_ints = zip(posix_range_aggr[0::2], posix_range_aggr[2::2])
+    if not normalize_flag:
+      time_time_ints = zip(posix_range_aggr[0::2], posix_range_aggr[2::2])
+    else:
+      time_time_ints = zip(time_range_aggr[0:-1], time_range_aggr[1:])
     num_time_ints = len(time_time_ints)
     # sort by time intervals first
     for interval in xrange(num_time_ints):
@@ -773,10 +980,10 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
       interval_data = []
       for plt_ind in xrange(numplots):
         y_spacing_aggr = numplots - plt_ind - 1
-        c = m.to_rgba(y_spacing_aggr/float(numplots))
         plt_grp = zip(x_grps[plt_ind], y_offss[plt_ind],
                       y_grps[plt_ind], c_grps[plt_ind],
                       w_grps[plt_ind])
+        c = np.average(c_grps[plt_ind], axis=0)
         max_time = []
         times = np.concatenate(x_grps[plt_ind])
         weights = np.concatenate(w_grps[plt_ind])
@@ -785,6 +992,10 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
         colors = np.concatenate(colors_extend)
 
         valid_times_inds = np.nonzero(np.logical_and(times >= lower_time, times < upper_time))
+        if plt_ind == numplots -1 and  normalize_flag:
+          # include endpoint, 1.0
+          valid_times_inds = np.nonzero(np.logical_and(times >= lower_time, times <= upper_time))
+
         valid_times = times[valid_times_inds]
         valid_weights = weights[valid_times_inds]
         valid_colors = colors[valid_times_inds]
@@ -802,7 +1013,7 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
                         c=np.tile(c, valid_times.shape),
                         s=max_ms*valid_weights/float(np.amax(valid_weights)),
                         lw=0,
-                        alpha=0.5)
+                        alpha=0.3)
           pass
       interval_data_np = np.concatenate(interval_data)
       weight_time_int = interval_data_np[:,1]
@@ -847,12 +1058,14 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
         interval_inds = np.nonzero(np.logical_and(weight_time_int >= lower_lim, weight_time_int < upper_lim))
         interval_info.append((interval_inds, y_spacing_aggr))
       max_interval_size = float(max([len(x[0][0]) for x in interval_info]))
-      print "max interval size", max_interval_size
-      print [len(x[0][0]) for x in interval_info]
+      #print "max interval size", max_interval_size
+      #print [len(x[0][0]) for x in interval_info]
       for interval_inds, y_spacing_aggr in interval_info:
         weights_interval = weight_time_int[interval_inds]
-        print "lower %s, upper %s" % (lower_lim, upper_lim)
-        if not weights_interval.shape[0]: print "empty"; continue
+        #print "lower %s, upper %s" % (lower_lim, upper_lim)
+        if not weights_interval.shape[0]:
+          #print "empty";
+          continue
         plt_ind_interval = plt_ind_time_int[interval_inds]
         hist, bin_edges = np.histogram(plt_ind_interval, bins=plt_ind_bins,
                                        density=True)
@@ -879,12 +1092,12 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
       tot_weights = float(max([weight_time_int[np.nonzero(plt_ind_time_int == plt_ind)].shape[0] for plt_ind in range(numplots)]))
       if use_exclusive:
         tot_weights = float(max([weight_time_int[np.nonzero(plt_ind_time_int == plt_ind)].shape[0] for plt_ind in exclusive_range]))
-      print "weights by plt", [weight_time_int[np.nonzero(plt_ind_time_int == plt_ind)].shape[0] for plt_ind in range(numplots)]
+      #print "weights by plt", [weight_time_int[np.nonzero(plt_ind_time_int == plt_ind)].shape[0] for plt_ind in range(numplots)]
 
       bottoms[interval] = 0.0*np.ones(lefts[interval].shape)
       max_interval_size_2 = [x.shape[0] for x in data_by_time_int]
-      print "weights by interval", max_interval_size_2
-      print "max weight by plt", tot_weights, "max weight by interval", max(max_interval_size_2)
+      #print "weights by interval", max_interval_size_2
+      #print "max weight by plt", tot_weights, "max weight by interval", max(max_interval_size_2)
       max_interval_size_2 = float(max(max_interval_size_2))
 
       if use_hist and not use_interval:
@@ -912,7 +1125,8 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
           pmf_scaled = num_weights/tot_weights * pmf * weight_time_int.shape[0]/max_interval_size_2
 
         y_spacing_aggr = numplots - plt_ind - 1
-        c = m.to_rgba(y_spacing_aggr/float(numplots))
+        #c = m.to_rgba(y_spacing_aggr/float(numplots))
+        c = np.average(c_grps[plt_ind], axis=0)
         lefts_time_int = lefts[interval]
         bottoms_time_int = bottoms[interval]
 
@@ -939,11 +1153,8 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
       title_str += " start time"
     if normalize_flag:
       title_str += " (normalized)"
-    exam_str = "mt"
-    rank_str = "rank"
-    if not use_mt: exam_str = "final"
-    if not use_rank: rank_str = "abs"
-    title_str += "(%s, %s)" % (exam_str, rank_str)
+    grade_tup_str = (GRADE_NAMES[grade_name], GRADE_TYPES[grade_type])
+    title_str += "(%s, %s)" % grade_tup_str
     fig.suptitle(title_str)
     ax_aggr.set_title("%s (aggr)" % title_str)
 
@@ -961,7 +1172,7 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
         ax_all[plt_tup].set_label('Date')
         ax_all[plt_tup].set_xlim(all_start_time, all_end_time)
         ax_all[plt_tup].set_xticks(posix_range)
-        ax_all[plt_tup].set_xticklabels(xlabels, rotation=45, fontsize=8)
+        ax_all[plt_tup].set_xticklabels(xlabels, rotation=90, fontsize=8)
       else:
         ax_all[plt_tup].set_label('Normalized progress over commits')
         ax_all[plt_tup].set_xlim(0.0, 1.0)
@@ -982,7 +1193,7 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
         ylabels = map(lambda f : '%.2f' % (-1*f),
                     ylabels)
       elif sort_type in [START_TYPE, END_TYPE]:
-        ylabels = map(posix_to_time, ylabels)
+        ylabels = map(posix_to_datetime, ylabels)
       else:
         ylabels = map(int, ylabels)
 
@@ -995,10 +1206,11 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
       ax_aggr.set_label('Date')
       ax_aggr.set_xlim(posix_range_aggr[0], posix_range_aggr[-1])
       ax_aggr.set_xticks(posix_range_aggr[0::2])
-      ax_aggr.set_xticklabels(xlabels_aggr[0::2], rotation=45, fontsize=8)
+      ax_aggr.set_xticklabels(xlabels_aggr[0::2], rotation=90, fontsize=8)
     else:
       ax_aggr.set_label('Normalized progress over commits')
       ax_aggr.set_xlim(0.0, 1.0)
+      ax_aggr.set_xticks(xlabels_aggr)
     ax_aggr.set_ylim(-1, numplots+1)
     ax_aggr.set_yticks(range(numplots))
     ax_aggr.set_yticklabels(ylabels_aggr)
@@ -1021,7 +1233,7 @@ def plot_times_sorted(output_dir, year_q, cluster=True):
       fig_prefix += '_end'
     if normalize_flag:
       fig_prefix += '_norm'
-    fig_prefix += '_%s_%s' % (exam_str, rank_str)
+    fig_prefix += '_%s_%s' % grade_tup_str
     if cluster:
       fig_prefix += '_kmeans'
     fig_dest = os.path.join(output_dir, '%s.png' % fig_prefix)
@@ -1079,9 +1291,9 @@ def k_means(data, incr=0):
   k = ms.shape[0]
   if k == 0:
     print "error with this dataset"
-    # print map(posix_to_time, data)
+    # print map(posix_to_datetime, data)
     # print data
-    print "data: (%s, %s) vs assgt: (%s, %s) " % tuple(map(posix_to_time,
+    print "data: (%s, %s) vs assgt: (%s, %s) " % tuple(map(posix_to_datetime,
         [floor_d, ceil_d, all_start_time, all_end_time]))
     return {}
   #print "k means (k=%d):" % k
@@ -1129,15 +1341,7 @@ def find_nearest(array, value):
 
 def plot_k_means(output_dir, year_q):
   ################ load points for each user ###############
-  top_sims = load_top_sims_from_log(output_dir, year_q)
-  posix_lookup = load_posix_to_commit_ind(output_dir, year_q)
-  # all_points[uname][posix_time] -> addtl data
-  all_points = get_points(top_sims, posix_lookup, cluster=True)
-
-  exam_grades = load_exam_grades(output_dir, year_q)
-  mt_gr, f_gr = get_graderank_dict(exam_grades)
-  print "year_q:", year_q
-  all_stats = []
+  plot_times_sorted(output_dir, year_q, cluster=True)
 
 """
 Box plots of all times, nothing else.
@@ -1193,7 +1397,7 @@ def plot_times(output_dir, zoom=False, use_top_sims=False):
       print "Starting box plot."
       bp = plt.boxplot(offset_times)
       # # ax1.yaxis.grid(True, linestyle='-', which='major', color='lightgrey',
-      # #            alpha=0.5)
+      # #            alpha=0.3)
       print "Adding x labels."
       numBoxes = len(students)
       # #ax1.set_xlim(0.5, numBoxes + 0.5)
@@ -1217,7 +1421,7 @@ def plot_times(output_dir, zoom=False, use_top_sims=False):
       print labels
       ax1.set_yticks(posix_range)
       ytickNames = plt.setp(ax1, yticklabels=labels)
-      #plt.setp(ytickNames, rotation=45, fontsize=8)
+      #plt.setp(ytickNames, rotation=0, fontsize=8)
 
       # add title
       ax1.set_title("Sample data worktime distribution.")
@@ -1228,3 +1432,4 @@ def plot_times(output_dir, zoom=False, use_top_sims=False):
         graph_name = "boxplot_%s_%s_zoom.png" % (year_q, tot_graphs)
       print "Saving box plot to %s" % graph_name
       fig.savefig(os.path.join(output_dir, graph_name))
+      plt.close(fig)

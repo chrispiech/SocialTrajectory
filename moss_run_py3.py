@@ -46,6 +46,8 @@ def baseline(TARGET_DIR, CURRENT_Q,
     os.makedirs(os.path.join(MOSS_OUTPUT_DIR, current_q))
   #current_q = 'final_submissions' # for holdout and mass; all quarters!
 
+  OUTPUT_TEMP_DIR_NAME = "baseline_temp"
+
   cwd = os.getcwd()
   os.chdir(TARGET_DIR)
   print("in dir", TARGET_DIR)
@@ -58,8 +60,7 @@ def baseline(TARGET_DIR, CURRENT_Q,
 
   m.run(npairs=num_dirs_ceil)
   h = pymoss.Html(m, "%s" % current_q)
-  #moss_dir = (h.gen_all()).split('/')[-1]
-  moss_dir = (h.gen_all('baseline_temp')).split('/')[-1]
+  moss_dir = (h.gen_all(OUTPUT_TEMP_DIR_NAME)).split('/')[-1]
   commit_moss_dir = os.path.join(MOSS_OUTPUT_DIR, current_q)
   mv_cmd = "mv %s %s" % (os.path.join(cwd, moss_dir), commit_moss_dir)
   print("moving moss output:", mv_cmd)
@@ -85,6 +86,7 @@ def select_pairs(TARGET_DIR, CURRENT_Q,
   print("in dir", TARGET_DIR)
 
   TEMP_DIR_NAME = "temp"
+  OUTPUT_TEMP_DIR_NAME = "output_select_pair_temp"
   count = 500
   for commit in os.listdir(current_q):
     print("starting moss for commit", commit)
@@ -112,8 +114,7 @@ def select_pairs(TARGET_DIR, CURRENT_Q,
 
       m.run(npairs=100)
       h = pymoss.Html(m, "%s" % commit)
-      #moss_dir = (h.gen_all()).split('/')[-1]
-      moss_dir = (h.gen_all('output_select_pair_temp')).split('/')[-1]
+      moss_dir = (h.gen_all(OUTPUT_TEMP_DIR_NAME)).split('/')[-1]
       mv_cmd = "mv %s %s" % (os.path.join(cwd, moss_dir), commit_moss_dir)
       print("moving moss output to", commit_moss_dir)
       call_cmd(mv_cmd)
@@ -186,6 +187,7 @@ def max_pairs_users(TARGET_DIR, CURRENT_Q,
       call_cmd(ln_cmd)
 
     TEMP_DIR_NAME = "temp_ij"
+    OUTPUT_TEMP_DIR_NAME = "output_max_pair_temp"
     if not os.path.exists(os.path.join(TARGET_DIR, TEMP_DIR_NAME)):
       os.makedirs(os.path.join(TARGET_DIR, TEMP_DIR_NAME))
     # compare commit_i to uname_j
@@ -206,8 +208,7 @@ def max_pairs_users(TARGET_DIR, CURRENT_Q,
 
         m.run(npairs=1)
         h = pymoss.Html(m, "%s" % commit_i)
-        #moss_dir = (h.gen_all()).split('/')[-1]
-        moss_dir = (h.gen_all('output_max_pair_temp')).split('/')[-1]
+        moss_dir = (h.gen_all(OUTPUT_TEMP_DIR_NAME)).split('/')[-1]
         mv_cmd = "mv %s %s" % (os.path.join(cwd, moss_dir), commit_moss_dir)
         print("moving moss output to", commit_moss_dir)
         call_cmd(mv_cmd)
@@ -234,8 +235,7 @@ def max_pairs_users(TARGET_DIR, CURRENT_Q,
 
         m.run(npairs=100)
         h = pymoss.Html(m, "%s" % commit_j)
-        #moss_dir = (h.gen_all()).split('/')[-1]
-        moss_dir = (h.gen_all('output_max_pair_temp')).split('/')[-1]
+        moss_dir = (h.gen_all(OUTPUT_TEMP_DIR_NAME)).split('/')[-1]
         mv_cmd = "mv %s %s" % (os.path.join(cwd, moss_dir), commit_moss_dir)
         print("moving moss output to", commit_moss_dir)
         call_cmd(mv_cmd)
@@ -282,7 +282,8 @@ def multi_moss(TARGET_DIR, CURRENT_Q,
   #                               os.path.join(final_current_q_dir, final_sub))
   #     call_cmd(ln_cmd)
 
-  TEMP_DIR_NAME = "temp"
+  TEMP_DIR_NAME = "temp_%s" % CURRENT_Q
+  OUTPUT_TEMP_DIR_NAME = "output_regular_temp_%s" % CURRENT_Q
   count = -1 # run all of them
   commit_tot = len(os.listdir(CURRENT_Q))
   commit_count = 0
@@ -319,8 +320,7 @@ def multi_moss(TARGET_DIR, CURRENT_Q,
 
       m.run(npairs=5)
       h = pymoss.Html(m, "%s" % commit)
-      #moss_dir = (h.gen_all()).split('/')[-1]
-      moss_dir = (h.gen_all('output_regular_temp')).split('/')[-1]
+      moss_dir = (h.gen_all(OUTPUT_TEMP_DIR_NAME)).split('/')[-1]
       mv_cmd = "mv %s %s" % (os.path.join(cwd, moss_dir), commit_moss_dir)
       print("moving moss output to", commit_moss_dir)
       call_cmd(mv_cmd)
@@ -359,6 +359,7 @@ def multi_moss_diff(TARGET_DIR, CURRENT_Q,
   print("in dir", TARGET_DIR)
 
   TEMP_DIR_NAME = "temp_diff"
+  OUTPUT_TEMP_DIR_NAME = "output_diff"
   count = -1 # run all of them
   commit_tot = len(os.listdir(insert_dir))
   commit_count = 0
@@ -405,7 +406,7 @@ def multi_moss_diff(TARGET_DIR, CURRENT_Q,
 
           m.run()
           h = pymoss.Html(m, "%s" % commit)
-          moss_dir = (h.gen_all('output_diff')).split('/')[-1]
+          moss_dir = (h.gen_all(OUTPUT_TEMP_DIR_NAME)).split('/')[-1]
           mv_cmd = "mv %s %s" % (os.path.join(cwd, moss_dir), commit_moss_dir)
           print(os.listdir(os.path.join(cwd, moss_dir)))
           print(mv_cmd)
@@ -436,7 +437,8 @@ def multi_moss_lecture(TARGET_DIR, CURRENT_Q,
   os.chdir(TARGET_DIR)
   print("in dir", TARGET_DIR)
 
-  TEMP_DIR_NAME = "temp_lecture"
+  TEMP_DIR_NAME = "temp_lecture_%s" % CURRENT_Q
+  OUTPUT_TEMP_DIR_NAME = "output_lecture_temp_%s" % CURRENT_Q
   count = -1 # run all of them
   commit_tot = len(os.listdir(CURRENT_Q))
   commit_count = 0
@@ -470,7 +472,7 @@ def multi_moss_lecture(TARGET_DIR, CURRENT_Q,
 
       m.run()
       h = pymoss.Html(m, "%s" % commit)
-      moss_dir = (h.gen_all('output_lecture_temp')).split('/')[-1]
+      moss_dir = (h.gen_all(OUTPUT_TEMP_DIR_NAME)).split('/')[-1]
       mv_cmd = "mv %s %s" % (os.path.join(cwd, moss_dir), commit_moss_dir)
       print(mv_cmd)
       print("moving moss output to", commit_moss_dir)
@@ -517,6 +519,7 @@ def multi_moss_noonline(TARGET_DIR, CURRENT_Q,
       call_cmd(ln_cmd)
 
   TEMP_DIR_NAME = "temp_noonline"
+  OUTPUT_TEMP_DIR_NAME = 'output_noonline_temp'
   count = -1 # run all of them
   commit_tot = len(os.listdir(CURRENT_Q))
   commit_count = 0
@@ -557,7 +560,7 @@ def multi_moss_noonline(TARGET_DIR, CURRENT_Q,
       m.run(npairs=5)
       h = pymoss.Html(m, "%s" % commit)
       #moss_dir = (h.gen_all()).split('/')[-1]
-      moss_dir = (h.gen_all('output_noonline_temp')).split('/')[-1]
+      moss_dir = (h.gen_all(OUTPUT_TEMP_DIR_NAME)).split('/')[-1]
       mv_cmd = "mv %s %s" % (os.path.join(cwd, moss_dir), commit_moss_dir)
       print("moving moss output to", commit_moss_dir)
       call_cmd(mv_cmd)
@@ -579,16 +582,25 @@ if __name__ == "__main__":
   #                   FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
   #                   STARTER_DIR_NAME,
   #                   MOSS_OUTPUT_DIR))
+  print(os.listdir(TARGET_DIR))
   for year_q_dirname in os.listdir(TARGET_DIR):
     try:
       year, q = year_q_dirname.split('_')
       int(year), int(q)
     except: continue
-    pymoss.util.time("Running all moss", lambda:
-                  multi_moss(TARGET_DIR, year_q_dirname,
-                      FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
+
+    # pymoss.util.time("Running all moss", lambda:
+    #               multi_moss(TARGET_DIR, year_q_dirname,
+    #                   FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
+    #                   STARTER_DIR_NAME,
+    #                   MOSS_OUTPUT_DIR))
+    year_q_dirname = '2013_1'
+    pymoss.util.time("Running lecture moss", lambda:
+                  multi_moss_lecture(TARGET_DIR, year_q_dirname,
+                      LECTURE_DIR_NAME, ONLINE_DIR_NAME,
                       STARTER_DIR_NAME,
                       MOSS_OUTPUT_DIR))
+    break
   # pymoss.util.time("Running all moss with no online", lambda:
   #               multi_moss_diff(TARGET_DIR, CURRENT_Q,
   #                   FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
@@ -597,11 +609,6 @@ if __name__ == "__main__":
   # pymoss.util.time("Running all moss with no online", lambda:
   #               multi_moss_noonline(TARGET_DIR, CURRENT_Q,
   #                   FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
-  #                   STARTER_DIR_NAME,
-  #                   MOSS_OUTPUT_DIR))
-  # pymoss.util.time("Running lecture moss", lambda:
-  #               multi_moss_lecture(TARGET_DIR, CURRENT_Q,
-  #                   LECTURE_DIR_NAME, ONLINE_DIR_NAME,
   #                   STARTER_DIR_NAME,
   #                   MOSS_OUTPUT_DIR))
   # pymoss.util.time("Running select pairs", lambda:

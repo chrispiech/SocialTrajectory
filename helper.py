@@ -9,9 +9,9 @@ import matplotlib.colors as mplcolors
 import javalang
 import re
 import itertools
-from time import strptime, mktime
+from time import mktime, strptime
 from datetime import datetime
-from pytz import timezone
+import pytz
 from lxml import etree
 from lxml import html
 
@@ -28,16 +28,116 @@ def call_cmd(cmd):
   return subprocess.Popen([cmd],stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).communicate()
 
 # time stuff
-pst = timezone('US/Pacific')
+pst = pytz.timezone('US/Pacific')
+utc = pytz.utc
+day_length = 86400
+pst_shift = 25200
+incr_length = day_length/2 # 12 hours
+
 all_start_time = mktime(datetime(2012,10,15,tzinfo=pst).timetuple())
 all_end_time = mktime(datetime(2012,10,24,15,15,tzinfo=pst).timetuple()) # deadline
 all_end_time = mktime(datetime(2012,10,25, 1, 0,tzinfo=pst).timetuple())
-incr_length = 86400/2 # 12 hours
 
-def posix_to_time(posix_t, format_str=None):
-	if not format_str:
-		format_str = '%m/%d %H:%M'
-	return pst.localize(datetime.fromtimestamp(posix_t)).strftime(format_str)
+# dictionary of posix values
+START_TIME, END_TIME = 0, 1
+all_startend_times = {'2012_1': (mktime(datetime(2012,10,15,13,15,tzinfo=pst).timetuple()),
+                        mktime(datetime(2012,10,24,15,15,tzinfo=pst).timetuple())), # 3:15pm (9)
+                      '2013_2': (mktime(datetime(2013, 1,30,14,58,tzinfo=pst).timetuple()),
+                        mktime(datetime(2013, 2, 8,15,15,tzinfo=pst).timetuple())), # 3:15pm (9)
+                      '2013_3': (mktime(datetime(2013, 4,19,13,34,tzinfo=pst).timetuple()),
+                        mktime(datetime(2013, 4,29,13,15,tzinfo=pst).timetuple())), # 1:15pm (10)
+                      '2013_4': (mktime(datetime(2013, 7, 7,16,23,tzinfo=pst).timetuple()),
+                        mktime(datetime(2013, 7,16,13,15,tzinfo=pst).timetuple())), # 1:15pm (9)
+                      '2013_1': (mktime(datetime(2013,10,13,19, 5,tzinfo=pst).timetuple()),
+                        mktime(datetime(2013,10,23,15,15,tzinfo=pst).timetuple())), # 3:15pm (10)
+                      '2014_2': (mktime(datetime(2014, 1,31,21, 2,tzinfo=pst).timetuple()),
+                        mktime(datetime(2014, 2,10,15,15,tzinfo=pst).timetuple())), # 3:15pm (10)
+                      '2014_3': (mktime(datetime(2014, 4,21,10,23,tzinfo=pst).timetuple()),
+                        mktime(datetime(2014, 4,30,12, 0,tzinfo=pst).timetuple())), # 12:00pm (9)
+                      '2014_4': (mktime(datetime(2014, 7, 9,14, 8,tzinfo=pst).timetuple()),
+                        mktime(datetime(2014, 7,17,16, 0,tzinfo=pst).timetuple())), # 4:00pm (8)
+                      '2014_1': (mktime(datetime(2014,10,13,13,26,tzinfo=pst).timetuple()),
+                        mktime(datetime(2014,10,22,15,15,tzinfo=pst).timetuple()))} # 3:15pm (9)
+
+def posix_to_datetime(posix_t, format_str=None):
+  if not format_str:
+    format_str = '%m/%d %H:%M'
+  return utc.localize(datetime.fromtimestamp(posix_t)).astimezone(pst).strftime(format_str)
+
+"""
+Get the day only (get the day's midnight)
+ex: YYYY/MM/DD hh:mm --> YYYY/MM/DD 00:00
+"""
+def date_floor(posix_t):
+  return day_length * (int(posix_t)/day_length) + pst_shift
+
+"""
+Get the next day (get the next day's midnight)
+ex: YYYY/MM/DD hh:mm --> YYYY/MM/(DD+1) 00:00
+"""
+def date_ceiling(posix_t):
+  return day_length * (int(posix_t)/day_length + 1) + pst_shift
+
+
+"""
+Scale to same day timeline.
+This is done by calculating the posix difference between the deadline for
+  old_year_q to the deadline for 2014_1 (the latest), and then scaling
+  all the input posix_t's days by that interval.
+
+posix_times should be a single int or a numpy array, not a list. :)
+"""
+def scale_days(posix_times, old_year_q, new_year_q=None):
+  if not new_year_q: new_year_q = '2014_1'
+  is_list = False
+  try:
+    posix_times.shape
+  except:
+    is_list = True
+    posix_times = np.array(posix_times)
+  # new_end_floor = date_floor(all_startend_times[new_year_q][END_TIME])
+  # old_end_floor = date_floor(all_startend_times[old_year_q][END_TIME])
+  # diff_deadline = new_end_floor - old_end_floor
+
+  diff_deadline = all_startend_times[new_year_q][END_TIME] - \
+                  all_startend_times[old_year_q][END_TIME]
+
+  new_posix_times = posix_times + diff_deadline
+  if is_list:
+    return new_posix_times.tolist()
+  return new_posix_times
+
+"""
+plus_minus: integer (or decimal) of extra days to tack on to borders.
+"""
+def get_day_range(year_q, plus_minus=None, incr=None):
+  if not plus_minus:
+    plus_minus = [0, 0]
+  if not incr:
+    incr = day_length/2
+  start_floor = date_floor(all_startend_times[year_q][START_TIME])
+  end_floor = date_floor(all_startend_times[year_q][END_TIME])
+  start_posix = start_floor + plus_minus[START_TIME]*day_length
+  end_posix = end_floor + plus_minus[END_TIME]*day_length
+  return np.arange(start_posix, end_posix+1, incr)
+
+
+"""
+For a single day, return a string
+of the day as a T-<deadline> for this quarter's deadline.
+"""
+def get_t_minus(posix_time, year_q):
+  end_ceil = date_floor(all_startend_times[year_q][END_TIME])
+  day_diff = int(date_floor(posix_time) - end_ceil)/day_length
+  if day_diff > 0:
+    return "T+%02d" % (day_diff)
+  return "T-%02d" % (abs(day_diff))
+
+"""
+Return only hh:mm
+"""
+def posix_to_time(posix_t):
+  return posix_to_datetime(posix_t, format_str='%H:%M')
 
 # top sim loading
 add_str = ''
@@ -238,41 +338,127 @@ def load_posix_to_commit_ind(output_dir, year_q):
   return lookup_dict
 
 """
-student --> (midterm, final)
-max midterm score: 120
-max final score: 180
+student --> (start, end, ta_id, prob, sol)
+"""
+CLASS_NAME = "CS106A"
+def load_student_lair(output_dir, year_q):
+  lair_dir = os.path.join(output_dir, 'lair')
+  fname = '%s_%s.csv' % (CLASS_NAME, year_q)
+  if fname not in os.listdir(lair_dir):
+    return {}
+  lair_dict = {}
+  with open(os.path.join(lair_dir, fname), 'r') as f:
+    for line in f.readlines():
+      line = line.strip()
+      # print "len", len(line.split(','))
+      # print line.split(',')
+      uname, start_str, end_str, ta_uname, prob, sol = line.split(',')
+      start_time = mktime(datetime.strptime(start_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=pst).timetuple())
+      end_time = mktime(datetime.strptime(end_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=pst).timetuple())
+      if uname not in lair_dict:
+        lair_dict[uname] = []
+      lair_dict[uname].append((int(start_time), int(end_time), ta_uname))
+      #print start_time, end_time
+  return lair_dict
 
+"""
+With respect to the array input_arr, which is an array
+with values in [0.0, 1.0] (or something)
+"""
+def set_colormap(input_arr=None):
+  if input_arr is None:
+    input_arr = np.array([0.0, 1.0])
+  vmin, vmax = min(input_arr), max(input_arr)
+
+  colormap=input_arr
+  norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
+  m=cmx.ScalarMappable(norm=norm, cmap=cmx.jet)
+  m.set_array(colormap)
+  return m
+
+################# grades GRADES #####################
+# below is not used...
+FUN_1, STY_1, TOT_1, LATE_1 =  0, 1, 2, 3
+FUN_2, STY_2, TOT_2, LATE_2 =  4, 5, 6, 7
+FUN_3, STY_3, TOT_3, LATE_3 =  8, 9,10,11
+FUN_4, STY_4, TOT_4, LATE_4 = 12,13,14,15
+FUN_5, STY_5, TOT_5, LATE_5 = 16,17,18,19
+FUN_6, STY_6, TOT_6, LATE_6 = 20,21,22,23
+FUN_7, STY_7, TOT_7, LATE_7 = 24,25,26,27
+MT_IND, F_IND = 29, 28 # flipped
+
+LATE_1, LATE_2, LATE_3 = 0, 1, 2
+LATE_4, LATE_5, LATE_6 = 3, 4, 5
+LATE_7 = 6
+LATE_TOT = 7
+
+letter_lookup = {'++': 7,
+  '+': 6,
+ 'V+': 5,
+  'V': 4,
+ 'V-': 3,
+  '-': 2,
+ '--': 1}
+
+# below is used...
+ASSGT_1, ASSGT_2, ASSGT_3 = 0, 1, 2
+ASSGT_4, ASSGT_5, ASSGT_6 = 3, 4, 5
+ASSGT_7 = 6
+MT_IND, F_IND = 7, 8
+NUM_ASSGTS = 7 # almost never use this, it's dangerous
+NUM_GRADES = NUM_ASSGTS + 2 # num_assgts + mt + final
+G_IND, R_IND = 0, 1
+GRADE_MAXES = [100.0,100.0,100.0, # 1, 2, 3 assgt
+             100.0,100.0,100.0,100.0, # 4, 5, 6, 7 assgt
+             140.0, # mt
+             180.0] # final
+GRADE_NAMES = ["assgt1", "assgt2", "assgt3",
+               "assgt4", "assgt5", "assgt6", "assgt7",
+               "mt",
+               "final"]
+GRADE_TYPES = ["abs", "rank"]
+
+"""
+student --> (midterm, final)
 Some students dropped the class after the midterm, so they have no
 final grade. These students have '-1' for a final grade.
 """
-def load_exam_grades(output_dir, year_q):
+def load_all_grades(output_dir, year_q):
   grades_dir = os.path.join(output_dir, 'grades')
   fname = '%s.csv' % year_q
   if fname not in os.listdir(grades_dir):
     return {}
 
   grades_dict = {}
+  lates_dict = {}
   with open(os.path.join(grades_dir, fname), 'r') as f:
     for line in f.readlines():
       line = line.strip()
-      uname, mt, final = line.split(',')
+      uname = line.split(',')[0]
+      grades = line.split(',')[1:]
+      grades_entry = []
+      lates_entry = []
+      for assgt_id in range(NUM_ASSGTS):
+        grade_tup = grades[:6]
+        grades = grades[6:]
+        func_gr, func_l, style_l, style_gr, tot_gr, late_days = grade_tup
+        grades_entry.append(float(tot_gr))
+        if late_days == '':
+          late_days = '0'
+        lates_entry.append(int(late_days))
+      final, mt, tot_late_days = grades[:3] # skip notes col if present
       if mt == '': mt = -1
       if final == '': final = -1
-      grades_dict[uname] = (int(mt), int(final))
+      # if mt == '' or final == '':
+      #   print "skipping uname (no mt/final):", uname
+      #   continue
+      grades_entry += [int(mt), int(final)]
+      lates_entry.append(int(tot_late_days))
+      grades_dict[uname] = grades_entry #(int(mt), int(final))
+      lates_dict[uname] = lates_entry
   return grades_dict
 
-"""
-With respect to the array c_grades, which is an array
-with values in [0.0, 1.0]
-"""
-def set_colormap(c_grades):
-  colormap=c_grades
-  norm = mpl.colors.Normalize(vmin=min(c_grades), vmax=max(c_grades))
-  m=cmx.ScalarMappable(norm=norm, cmap=cmx.jet)
-  m.set_array(colormap)
-  return m
-
-def get_rankings(grades): #, starttimes, endtimes, duration):
+def get_rankings(grades):
   inds = np.argsort(grades) # smallest to largest
   inds_arg = np.argsort(inds) # ranking indices
   rankings = np.linspace(0.0, 1.0, len(inds))[inds_arg]
@@ -284,27 +470,30 @@ Returns two dictionaries (mt and final):
   grade and rank are both on a scale of 0.0 to 1.0.
 """
 def get_graderank_dict(grades_dict, mt_max=140.0, f_max=180.0):
-  mt_list = []
-  f_list = []
+  rankdict = {}
+  if not grades_dict:
+    return rankdict
+  grade_list = []
   for uname in grades_dict:
-    mt, f = grades_dict[uname]
-    if mt != -1:
-      mt_list.append((mt, uname))
-    if f != -1:
-      f_list.append((f, uname))
-  m_grades, m_unames = zip(*mt_list)
-  m_inds = np.argsort(np.array(m_grades))
-  m_rankdict = {}
-  for rank in range(len(m_unames)):
-    ind = m_inds[rank]
-    m_rankdict[m_unames[ind]] = (m_grades[ind]/float(mt_max),
-                                 rank/float(len(m_unames)))
-  f_rankdict = {}
-  f_grades, f_unames = zip(*f_list)
-  f_inds = np.argsort(np.array(f_grades))
-  for rank in range(len(f_unames)):
-    ind = f_inds[rank]
-    f_rankdict[f_unames[ind]] = (f_grades[ind]/float(f_max),
-                                 rank/float(len(f_unames)))
-  return m_rankdict, f_rankdict
+    if min(grades_dict[uname]) == -1:
+      continue
+    grade_list.append((uname, grades_dict[uname]))
 
+  unames, all_grades = zip(*grade_list)
+  all_grades_np = np.array(all_grades)
+
+  num_grades = all_grades_np.shape[1]
+  all_grades = []
+  all_ranks = []
+  for g_ind in range(num_grades):
+    grades_i = all_grades_np[:,g_ind]
+    all_grades.append((grades_i/float(GRADE_MAXES[g_ind])).tolist())
+    inds_i = np.argsort(grades_i)
+    ranks_i = np.linspace(0.0, 1.0, len(grade_list))[np.argsort(inds_i)]
+    all_ranks.append(ranks_i.tolist())
+
+  all_grades = zip(*all_grades)
+  all_ranks = zip(*all_ranks)
+  for i in range(len(grade_list)):
+    rankdict[str(unames[i])] = (all_grades[i], all_ranks[i])
+  return rankdict

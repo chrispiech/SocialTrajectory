@@ -24,8 +24,8 @@ http://52.37.79.5:8000/diff_2012_1_aggr_commit_other_Final_rank_norm.png
 line_thresh = 100 # if below this threshold, don't plot.
 def plot_diff_moss(output_dir, year_q, top_sims, diff_type=0):
   # don't use grades yet thanks
-  exam_grades = load_exam_grades(output_dir, year_q)
-  mt_gr, f_gr = get_graderank_dict(exam_grades)
+  all_grades = load_all_grades(output_dir, year_q)
+  gr = get_graderank_dict(all_grades)
   posix_lookup = load_posix_to_commit_ind(output_dir, year_q)
 
   use_other = True
@@ -56,16 +56,9 @@ def plot_diff_moss(output_dir, year_q, top_sims, diff_type=0):
               if num_lines < line_thresh: continue
               mt_gr_uname, f_gr_uname = (1.0,1.0), (1.0,1.0)
               if use_grades:
-                if use_mt:
-                  if uname not in mt_gr:
-                    continue
-                  else:
-                    mt_gr_uname = mt_gr[uname]
-                else:
-                  if uname not in f_gr:
-                    continue
-                  else:
-                    f_gr_uname = f_gr[uname]
+                if uname not in gr: continue
+                mt_gr_uname = [gr[uname][G_IND][MT_IND], gr[uname][R_IND][MT_IND]]
+                f_gr_uname = [gr[uname][G_IND][F_IND], gr[uname][R_IND][F_IND]]
               uname_stats.append(
                   (int(posix_time), int(commit_num),
                    start_posix, end_posix, num_commits,
@@ -108,7 +101,7 @@ def plot_diff_moss(output_dir, year_q, top_sims, diff_type=0):
         all_percent_max = np.amax(all_diff_np[:,self_ind])
         incr = incr_length
         posix_range = np.arange(all_start_time, all_end_time, step=incr)
-        xlabels = [posix_to_time(posix_t) for posix_t in posix_range]
+        xlabels = [posix_to_datetime(posix_t) for posix_t in posix_range]
         fig = plt.figure(figsize=(10,10))
         ax = plt.gca()
         if sim_type == 'percent':
@@ -288,19 +281,13 @@ def plot_diff_sims(output_dir, year_q, top_sims):
 def plot_consecline_stats(output_dir, year_q, use_mt=True, rank=True):
   use_trajecs = True
   consec_stats = load_consecline_stats(output_dir, year_q)
-  exam_grades = load_exam_grades(output_dir, year_q)
-  if use_mt:
-    graderanks, _ = get_graderank_dict(exam_grades)
-  else:
-    _, graderanks = get_graderank_dict(exam_grades)
+  all_grades = load_all_grades(output_dir, year_q)
+  gr = get_graderank_dict(all_grades)
   all_inserts, all_deletes = [], []
   line_thresh = 50
   for uname in consec_stats:
-    if uname not in graderanks: continue
-    if not rank:
-      grade = graderanks[uname][0]
-    else:
-      grade = graderanks[uname][1]
+    if uname not in grs: continue
+    grade = gr[uname][int(rank)][int(not use_mt)]
     posix_times = consec_stats[uname].keys()
     posix_times.sort()
     temp_list = [(posix_times[i],
@@ -416,7 +403,7 @@ def plot_consecline_stats(output_dir, year_q, use_mt=True, rank=True):
                           c=insert_c, lw=0, alpha=0.7)
       incr = incr_length
       posix_range = np.arange(all_start_time, all_end_time, step=incr_length)
-      x_labels = [posix_to_time(posix_t) for posix_t in posix_range]
+      x_labels = [posix_to_datetime(posix_t) for posix_t in posix_range]
       for ax_std in ax_all:
         ax_std.set_xlim(all_start_time, all_end_time)
         ax_std.set_xticks(posix_range)

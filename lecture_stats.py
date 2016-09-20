@@ -48,23 +48,17 @@ def graph_sims_to_lectures(output_dir, lecture_year_q, top_sims,
               use_mt=True, rank=True):
   year_q = '_'.join(lecture_year_q.split('_')[1:])
   posix_lookup = load_posix_to_commit_ind(output_dir, year_q)
-  exam_grades = load_exam_grades(output_dir, year_q)
-  if use_mt:
-    graderanks, _ = get_graderank_dict(exam_grades)
-  else:
-    _, graderanks = get_graderank_dict(exam_grades)
+  all_grades = load_all_grades(output_dir, year_q)
+  gr = get_graderank_dict(all_grades)
 
   lecturef_stats = {}
   for uname in top_sims:
     uname_stats = {}
-    if uname not in graderanks: continue
+    if uname not in grs: continue
     # get start and end posix times..
     all_posix = posix_lookup[uname].keys()
     start_posix, end_posix, num_commits = min(all_posix), max(all_posix), len(all_posix)
-    if not rank: # (abs_grade, rank) in that order
-      grade = graderanks[uname][0]
-    else:
-      grade = graderanks[uname][1]
+    grade = gr[uname][int(rank)][int(not use_mt)]
     for posix_time in top_sims[uname]:
       lecture_fname, token, percent_self, percent_other, _, _ = \
         top_sims[uname][posix_time]
@@ -145,7 +139,7 @@ def graph_sims_to_lectures(output_dir, lecture_year_q, top_sims,
   # time axis first
   incr = incr_length
   posix_range = np.arange(all_start_time, all_end_time, step=incr)
-  x_labels = [posix_to_time(posix_t) for posix_t in posix_range]
+  x_labels = [posix_to_datetime(posix_t) for posix_t in posix_range]
 
   # decide colors for similarity
   cm = cmx.get_cmap('Blues')
@@ -168,13 +162,13 @@ def graph_sims_to_lectures(output_dir, lecture_year_q, top_sims,
   st_ub = mktime(datetime(2012,10,25,0,0,tzinfo=pst).timetuple())
   st_steps = 10
   st_posix_range = np.linspace(st_lb, st_ub, st_steps)
-  st_labels = [posix_to_time(posix_t, format_str=time_fstr) \
+  st_labels = [posix_to_datetime(posix_t, format_str=time_fstr) \
             for posix_t in st_posix_range]
   end_lb = mktime(datetime(2012,10,21,15,15,tzinfo=pst).timetuple())
   end_ub = mktime(datetime(2012,10,25,15,15,tzinfo=pst).timetuple())
   end_steps = 10
   end_posix_range = np.linspace(end_lb, end_ub, end_steps)
-  end_labels = [posix_to_time(posix_t, format_str=time_fstr) \
+  end_labels = [posix_to_datetime(posix_t, format_str=time_fstr) \
             for posix_t in end_posix_range]
 
   for i in range(num_lecturef):

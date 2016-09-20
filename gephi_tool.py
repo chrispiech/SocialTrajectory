@@ -17,9 +17,9 @@ def create_gephi(output_dir, year_q):
   write_edges_to_csv(output_dir, year_q, edges)
   write_static_edges_to_csv(output_dir, year_q, static_edges)
 
-def posix_to_time_gephi(posix_time):
+def posix_to_datetime_gephi(posix_time):
   posix_time = int(posix_time) # in case fed a string
-  return posix_to_time(posix_time, format_str='%Y-%m-%dT%H:%M:%S')
+  return posix_to_datetime(posix_time, format_str='%Y-%m-%dT%H:%M:%S')
 
 """
 Create an array per uname (node) and puts it in a dictionary.
@@ -30,7 +30,7 @@ def node_gephi_format(top_sims, uname_to_id):
   init_format = {}
   for uname in top_sims:
     init_commit_posix = min([int(posix_time) for posix_time in top_sims[uname]])
-    init_commit_time = posix_to_time_gephi(init_commit_posix)
+    init_commit_time = posix_to_datetime_gephi(init_commit_posix)
     #uid = uname_to_id[uname]
     uid = uname[6:]
     init_format[uid] = [uid, init_commit_time]
@@ -83,7 +83,7 @@ def edge_gephi_format(top_sims, uname_to_id, nodes):
     print "uid", uid, uname
     for i in range(len(top_sims[uname])):
       commit_posix = all_posix[i]
-      commit_time = posix_to_time_gephi(commit_posix)
+      commit_time = posix_to_datetime_gephi(commit_posix)
       other_uname, tokens, percent, _, commit_num, commit_hash = top_sims[uname][str(commit_posix)]
       #   uname_to_id[other_uname] = len(uname_to_id)
       #   other_uid = uname_to_id[other_uname]
@@ -99,7 +99,7 @@ def edge_gephi_format(top_sims, uname_to_id, nodes):
       edges[edge_id] = [edge_id, uid, other_uid, commit_time]
       if i+1 != len(top_sims[uname]):
         next_commit_posix = all_posix[i+1]
-        next_commit_time = posix_to_time_gephi(next_commit_posix)
+        next_commit_time = posix_to_datetime_gephi(next_commit_posix)
         edges[edge_id].append(next_commit_time)
       else:
         edges[edge_id].append('')

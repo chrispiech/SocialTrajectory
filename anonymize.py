@@ -243,7 +243,9 @@ def anonymize_grades(real_dir, anon_dir, uname_lookup_orig):
 
   # SUNet ID, midterm, final
   for grade_fname in os.listdir(real_dir):
-    year = grade_fname.split('.')[0][-4:]
+    if len(grade_fname.split('-extended')) != 2: continue
+    year = grade_fname.split('-extended')[0][-4:]
+    #year = grade_fname.split('.')[0][-4:]
     year_q = '%s_1' % (year)
     anon_grades = {}
     tot_students = 0
@@ -254,7 +256,8 @@ def anonymize_grades(real_dir, anon_dir, uname_lookup_orig):
       while line:
         tot_students += 1
         line = line.strip()
-        student, midterm, final = line.split(',')[:3]
+        student = line.split(',')[0]
+        all_grades = line.split(',')[1:]
         line = real_f.readline() # read next line
 
         if student not in uname_lookup:
@@ -263,7 +266,7 @@ def anonymize_grades(real_dir, anon_dir, uname_lookup_orig):
 
         student_id = uname_lookup[student]
         if student_id[:4] != year_q[:4]: continue # student retaking
-        anon_grades[student_id] = (midterm, final)
+        anon_grades[student_id] = all_grades
     print "%s: %s/%s students used" % (year_q, len(anon_grades), tot_students)
 
     with open(os.path.join(anon_dir, '%s.csv' % year_q), 'w') as anon_f:
@@ -297,21 +300,36 @@ def anonymize_lair(real_dir, anon_dir, uname_lookup_orig):
     # can sometimes have "null" in the start help time column, so ignore
     for row in reader:
       if count % 1000 == 0:
-        print count
+        #print count
+        pass
       count += 1
       uname, ta_uname, classname, year_q_str, start_help, _, end_help, prob, sol = \
           row
-      if classname.upper() != 'CS106A': continue
 
       year_int, q_int = map(int, year_q_str.split('.'))
       q_int = (q_int + 1) # fall: 4 -> 5 -> 1 (else: 2 -> 3, etc.)
       if q_int == 5: q_int = 1
       if q_int == 4: q_int = 4
-      year_q = '%s_%s' % (year_int, q_int)
+      year_q = '%s_%s_%s' % (classname, year_int, q_int)
       if year_q not in tots_lookup:
-        tots_lookup[year_q] = set()
-      tots_lookup[year_q].add(uname)
+        tots_lookup[year_q] = {}
+      if uname not in tots_lookup[year_q]:
+        tots_lookup[year_q][uname] = 0
+      tots_lookup[year_q][uname] += 1
 
+      # TA things
+      if year_q not in ta_lookup_by_year:
+        ta_lookup_by_year[year_q] = {}
+
+      if ta_uname not in ta_lookup:
+        ta_lookup[ta_uname] = '%s%02d%02d' % (year_int, q_int,
+            len(ta_lookup_by_year[year_q]))
+      ta_id = ta_lookup[ta_uname]
+      if ta_id not in ta_lookup_by_year[year_q]:
+        ta_lookup_by_year[year_q][ta_id] = 0
+      ta_lookup_by_year[year_q][ta_id] += 1 # number of times helped a student
+
+      if classname.upper() != 'CS106A': continue
       if uname not in uname_lookup: continue
       student_id = uname_lookup[uname]
       if '%s0%s' % (year_int, q_int) != student_id[:6]:
@@ -322,34 +340,51 @@ def anonymize_lair(real_dir, anon_dir, uname_lookup_orig):
         lair_dict[year_q] = {}
       if student_id not in lair_dict[year_q]:
         lair_dict[year_q][student_id] = []
-
-      if year_q not in ta_lookup_by_year:
-        ta_lookup_by_year[year_q] = set()
-      if ta_uname not in ta_lookup:
-        ta_lookup[ta_uname] = '%s%02d%02d' % (year_int, q_int,
-            len(ta_lookup_by_year[year_q]))
-      ta_id = ta_lookup[ta_uname]
-      if ta_uname not in ta_lookup_by_year[year_q]:
-        ta_lookup_by_year[year_q].add(ta_id)
+      # remove all commas from prob/sol strings
       lair_dict[year_q][student_id].append(\
-          (start_help, end_help, ta_id, prob, sol))
+          (start_help, end_help, ta_id, ''.join(prob.split(',')), ''.join(sol.split(','))))
 
   all_year_qs = tots_lookup.keys()
   all_year_qs.sort()
   for year_q in ta_lookup_by_year:
-    tas = list(ta_lookup_by_year[year_q])
+    tas = list(ta_lookup_by_year[year_q].keys())
     tas.sort()
-    print '%s\n\t%s' % (year_q, '\n\t'.join(tas))
+    for ta in tas:
+      #print year_q, ta, ta_lookup_by_year[year_q][ta]
+      pass
+    #print '%s\n\t%s' % (year_q, '\n\t'.join(tas))
   tas = ta_lookup.keys()
   tas.sort()
   for ta in tas:
-    print ta, ta_lookup[ta]
+    #print ta, ta_lookup[ta]
+    pass
+  # confirm number saved
   for year_q in all_year_qs:
     lair_unames = 0
-    tot_unames = len(tots_lookup[year_q])
+    tot_unames = len(tots_lookup[year_q].keys())
     if year_q in lair_dict:
       lair_unames = len(lair_dict[year_q].keys())
     print "%s: saving %s/%s student records" % (year_q, lair_unames, tot_unames)
+
+  # construct TA dictionary
+  ta_info = {}
+  for ta_uname, ta_id in ta_lookup.iteritems():
+    ta_years = [(year_q,ta_lookup_by_year[year_q][ta_id]) for year_q in ta_lookup_by_year if ta_id in ta_lookup_by_year[year_q]]
+    student_id = ''
+    if ta_uname in uname_lookup:
+      student_id = uname_lookup[ta_uname]
+
+    student_years = [(year_q, tots_lookup[year_q][ta_uname]) for year_q in tots_lookup if ta_uname in tots_lookup[year_q]]
+
+    ta_info[ta_id] = (student_id, '\t'.join(map(str,ta_years)), '\t'.join(map(str,student_years)), ta_uname)
+  ta_ids = ta_info.keys()
+  ta_ids.sort()
+  with open(os.path.join(anon_dir, '%s.csv' % 'ta_info'), 'w') as anon_ta_f:
+    ta_ids = ta_info.keys()
+    ta_ids.sort()
+    anon_ta_f.write('\n'.join(['%s,%s' % (ta_id,
+        ','.join(ta_info[ta_id][:3])) for ta_id in ta_ids]))
+    print anon_ta_f.name
 
   for year_q in lair_dict:
     with open(os.path.join(anon_dir, '%s.csv' % year_q), 'w') as anon_f:
@@ -357,7 +392,14 @@ def anonymize_lair(real_dir, anon_dir, uname_lookup_orig):
       student_ids.sort()
       for student_id in student_ids:
         lair_entries = lair_dict[year_q][student_id]
+        # for lair_entry in lair_entries:
+        #   print student_id, ','.join(map(str, lair_entry))
+        # print '\n'.join(['%s,%s' % (student_id,
+        #                               ','.join(map(str,lair_entry))) \
+        #                   for lair_entry in lair_entries])
         anon_f.write('\n'.join(['%s,%s' % (student_id,
                                       ','.join(map(str,lair_entry))) \
                           for lair_entry in lair_entries]))
+        anon_f.write('\n')
       print anon_f.name
+

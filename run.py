@@ -4,6 +4,7 @@ from moss_tool import *
 from moss_stats import *
 from gephi_tool import *
 from anonymize import *
+from ta_stats import *
 from tokenize_tool import *
 from prob_tool import *
 from diff_tool import *
@@ -19,7 +20,8 @@ HOLDOUT_DIR = os.path.join("rawdata", "dir_holdout")
 
 CODE_DIR_NAME = os.path.join("rawdata", "dir_mass")
 CODE_DIR_NAME = os.path.join("rawdata", "dir3")
-CODE_DIR_NAME = os.path.join("rawdata")
+CODE_DIR_NAME = os.path.join("rawdata", "dir_mass")
+CODE_DIR_NAME = 'rawdata'
 CODE_DIR = os.path.join(top_dir, CODE_DIR_NAME)
 
 COMMIT_DIR_NAME = "expanded_mass"
@@ -59,6 +61,8 @@ def run(code_dir, target_dir, final_submissions_dir, output_dir):
 def graph_general(code_dir, output_dir):
   #all_timestamps(code_dir, output_dir)
   #plot_times(output_dir)
+  #graph_gradetime_multi(output_dir)
+  plot_ta_stats_multi(output_dir)
   for year_q_dirname in os.listdir(output_dir):
     try:
       year, q = year_q_dirname.split('_')
@@ -66,9 +70,9 @@ def graph_general(code_dir, output_dir):
     except: continue
     print "using", year_q_dirname
     #graph_gradetime(output_dir, year_q_dirname)
-    plot_times_sorted(output_dir, year_q_dirname)
+    #plot_times_sorted(output_dir, year_q_dirname)
+    plot_ta_stats(output_dir, year_q_dirname)
     #plot_k_means(output_dir, year_q_dirname)
-    break
 
 def diff(moss_dir, code_dir, output_dir):
   year_q = '2012_1'
@@ -83,8 +87,9 @@ def moss(moss_dir, output_dir, final_submissions_dir):
       year, q = year_q_dirname.split('_')
       int(year), int(q)
     except: continue
+    year_q_dirname = "2012_1"
     print "Processing moss output for dir %s" % (year_q_dirname)
-    year_q_dirname = 'noonline_2012_1'
+    #year_q_dirname = 'noonline_2012_1'
     #moss_process(moss_dir, year_q_dirname, output_dir, final_submissions_dir)
     make_moss_graphs(output_dir, year_q_dirname)
     #create_gephi(output_dir, year_q_dirname)
@@ -177,9 +182,9 @@ def make_holdout(code_dir, holdout_dir, expt_dir, n=400):
 
 if __name__ == "__main__":
   #run(CODE_DIR, COMMIT_DIR, FINAL_SUBMISSIONS_DIR, OUTPUT_DIR)
-  #graph_general(CODE_DIR, OUTPUT_DIR)
+  graph_general(CODE_DIR, OUTPUT_DIR)
   #make_holdout(CODE_DIR, HOLDOUT_DIR, EXPT_DIR)
-  anonymize(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, COMMIT_DIR)
+  #anonymize(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, COMMIT_DIR)
   #moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
   #lecture(OUTPUT_DIR)
   #gephi(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR)
