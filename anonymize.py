@@ -236,17 +236,23 @@ def convert_f_path(other_f, uname_lookup):
 def anonymize_grades(real_dir, anon_dir, uname_lookup_orig):
   # since the uname_lookup table is tagged with the user's submit
   # count, we make a uname_lookup solely based on user for the grades.
-  uname_lookup = {}
-  for student_commit in uname_lookup_orig:
-    student = student_commit.split('_')[0]
-    uname_lookup[student] = uname_lookup_orig[student_commit]
 
   # SUNet ID, midterm, final
+  uname_lookup_by_year_q = load_uname_lookup_by_year_q()
   for grade_fname in os.listdir(real_dir):
     if len(grade_fname.split('-extended')) != 2: continue
     year = grade_fname.split('-extended')[0][-4:]
     #year = grade_fname.split('.')[0][-4:]
     year_q = '%s_1' % (year)
+
+    uname_lookup_orig = uname_lookup_by_year_q[year_q]
+    uname_lookup = {}
+    for student_commit in uname_lookup_orig:
+      student = student_commit.split('_')[0]
+      uname_lookup[student] = uname_lookup_orig[student_commit]
+    num_orig_students = len(uname_lookup.keys())
+    print "num orig students", num_orig_students
+
     anon_grades = {}
     tot_students = 0
     with open(os.path.join(real_dir, grade_fname), 'r') as real_f:
@@ -262,6 +268,7 @@ def anonymize_grades(real_dir, anon_dir, uname_lookup_orig):
 
         if student not in uname_lookup:
           #print "%s: student %s not available" % (year_q, student)
+          add_uname_to_lookup(student, year_q, uname_lookup_by_year_q)
           continue
 
         student_id = uname_lookup[student]
@@ -276,6 +283,7 @@ def anonymize_grades(real_dir, anon_dir, uname_lookup_orig):
                                 ','.join(anon_grades[student_id])) \
                                     for student_id in student_ids]))
       print anon_f.name
+  export_uname_lookup_by_year_q(uname_lookup_by_year_q)
 
 def anonymize_lair(real_dir, anon_dir, uname_lookup_orig):
   import csv
@@ -294,6 +302,7 @@ def anonymize_lair(real_dir, anon_dir, uname_lookup_orig):
   ta_lookup_by_year = {}
   tots_lookup = {}
   count = 0
+  student_list = {}
   with open(os.path.join(real_dir, 'AnonRequests.csv'), 'r') as csvfile:
     reader = csv.reader(csvfile)
     # SUNet ID, TA name, date entered, helped, finished
@@ -328,8 +337,11 @@ def anonymize_lair(real_dir, anon_dir, uname_lookup_orig):
       if ta_id not in ta_lookup_by_year[year_q]:
         ta_lookup_by_year[year_q][ta_id] = 0
       ta_lookup_by_year[year_q][ta_id] += 1 # number of times helped a student
-
       if classname.upper() != 'CS106A': continue
+      year_tup = '%s_%s' % (year_int, q_int)
+      if year_tup not in student_list:
+        student_list[year_tup] = set()
+      student_list[year_tup].add(uname)
       if uname not in uname_lookup: continue
       student_id = uname_lookup[uname]
       if '%s0%s' % (year_int, q_int) != student_id[:6]:
@@ -386,10 +398,14 @@ def anonymize_lair(real_dir, anon_dir, uname_lookup_orig):
         ','.join(ta_info[ta_id][:3])) for ta_id in ta_ids]))
     print anon_ta_f.name
 
+  for year_q in student_list:
+    print "year_q %s: %s students" % (year_q, len(student_list[year_q]))
+
   for year_q in lair_dict:
     with open(os.path.join(anon_dir, '%s.csv' % year_q), 'w') as anon_f:
       student_ids = lair_dict[year_q].keys()
       student_ids.sort()
+      print "num student ids in %s" % year_q, len(student_ids)
       for student_id in student_ids:
         lair_entries = lair_dict[year_q][student_id]
         # for lair_entry in lair_entries:

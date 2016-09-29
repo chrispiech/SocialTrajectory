@@ -21,7 +21,6 @@ HOLDOUT_DIR = os.path.join("rawdata", "dir_holdout")
 CODE_DIR_NAME = os.path.join("rawdata", "dir_mass")
 CODE_DIR_NAME = os.path.join("rawdata", "dir3")
 CODE_DIR_NAME = os.path.join("rawdata", "dir_mass")
-CODE_DIR_NAME = 'rawdata'
 CODE_DIR = os.path.join(top_dir, CODE_DIR_NAME)
 
 COMMIT_DIR_NAME = "expanded_mass"
@@ -38,7 +37,7 @@ OUTPUT_DIR_NAME = "proc_output"
 OUTPUT_DIR = os.path.join(top_dir, OUTPUT_DIR_NAME)
 
 # for moss
-MOSS_OUTPUT_TOP_DIR = "moss_output"
+MOSS_OUTPUT_TOP_DIR = "moss_mass"
 
 # for grades
 GRADE_DIR_NAME = "anon_grades"
@@ -55,7 +54,7 @@ def run(code_dir, target_dir, final_submissions_dir, output_dir):
 
   #expand_all_commits(code_dir, target_dir)
   # check_all_commits(target_dir, "2012_1")
-  copy_all_final(code_dir, final_submissions_dir)
+  #copy_all_final(code_dir, final_submissions_dir)
   pass
 
 def graph_general(code_dir, output_dir):
@@ -82,18 +81,21 @@ def diff(moss_dir, code_dir, output_dir):
   plot_diffs(output_dir, year_q)
 
 def moss(moss_dir, output_dir, final_submissions_dir):
-  for year_q_dirname in os.listdir(output_dir):
+  #output_dir = '%s_mass' % output_dir
+  #for year_q_dirname in os.listdir(output_dir):
+  #make_moss_graphs_multi(output_dir)
+  for year_q_dirname in ['2012_1', '2013_1', '2014_1']:
     try:
       year, q = year_q_dirname.split('_')
       int(year), int(q)
     except: continue
-    year_q_dirname = "2012_1"
     print "Processing moss output for dir %s" % (year_q_dirname)
     #year_q_dirname = 'noonline_2012_1'
-    #moss_process(moss_dir, year_q_dirname, output_dir, final_submissions_dir)
-    make_moss_graphs(output_dir, year_q_dirname)
-    #create_gephi(output_dir, year_q_dirname)
+    #moss_process(moss_dir, year_q_dirname, output_dir)
+    moss_online(moss_dir, year_q_dirname, output_dir)
     break
+    #make_moss_graphs(output_dir, year_q_dirname)
+    #create_gephi(output_dir, year_q_dirname)
 
 def lecture(output_dir):
   lecture_plot(output_dir, '2012_1')
@@ -182,10 +184,10 @@ def make_holdout(code_dir, holdout_dir, expt_dir, n=400):
 
 if __name__ == "__main__":
   #run(CODE_DIR, COMMIT_DIR, FINAL_SUBMISSIONS_DIR, OUTPUT_DIR)
-  graph_general(CODE_DIR, OUTPUT_DIR)
+  #graph_general(CODE_DIR, OUTPUT_DIR)
   #make_holdout(CODE_DIR, HOLDOUT_DIR, EXPT_DIR)
   #anonymize(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, COMMIT_DIR)
-  #moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
+  moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
   #lecture(OUTPUT_DIR)
   #gephi(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR)
   #tokenize(COMMIT_DIR, OUTPUT_DIR)

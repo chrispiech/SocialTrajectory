@@ -17,6 +17,79 @@ def moss_process(moss_dir, year_q, output_dir, use_diff=False):
   #all_sims = load_all_sims_from_log(output_dir, year_q)
   #return all_sims
 
+"""
+Saves people who have an online similarity.
+"""
+def write_online_stats(output_dir, year_q):
+  top_sims = load_top_sims_from_log(output_dir, year_q)
+  online_sims = get_top_sims_online(top_sims)
+  online_moss_path = os.path.join(output_dir, "%s_online_moss.csv" % year_q) 
+  with open(online_moss_path, 'w') as f:
+    unames = online_sims.keys()
+    unames.sort()
+    for uname in unames:
+      num_commits = len(top_sims[uname].keys())
+      if not online_sims[uname]: continue # if zero
+      f.write('%s,%s,%s\n' % (uname, online_sims[uname], num_commits))
+  print "online sims saved to", online_moss_path
+
+def load_online_stats(output_dir, year_q):
+  top_sims = load_top_sims_from_log(output_dir, year_q)
+  online_moss_path = os.path.join(output_dir, "%s_online_moss.csv" % year_q) 
+  online_sims = {}
+  with open(online_moss_path, 'r') as f:
+    for line in f.readlines():
+      line = line.strip()
+      uname, num_online, num_commits = line.split(',')
+      posix_times = top_sims[uname].keys()
+      posix_times.sort()
+      online_info = []
+      for commit_ind, posix_time in enumerate(posix_times):
+        uname_other, tokens, percent_self, percent_other,_,_ = \
+            top_sims[uname][posix_time]
+        if 'online' in uname_other:
+          online_info.append(
+              (int(posix_time), commit_ind, tokens, percent_self, percent_other))
+      online_sims[uname] = (int(num_online), int(num_commits),
+                            np.array(online_info))
+  return online_sims
+
+def load_top_sims_by_uname(output_dir, year_q):
+  cross_sims = {}
+  top_sims = load_top_sims_from_log(output_dir, year_q)
+  for uname in top_sims:
+    posix_times = top_sims[uname].keys()
+    posix_times.sort()
+    cross_sims[uname] = {}
+    for commit_ind, posix_time in enumerate(posix_times):
+      uname_other, tokens, percent_self, percent_other,_,_ = \
+          top_sims[uname][posix_time]
+      if uname_other not in cross_sims[uname]:
+        cross_sims[uname][uname_other] = []
+      cross_sims[uname][uname_other].append(
+          (int(posix_time), commit_ind, tokens, percent_self, percent_other))
+    for uname_other in cross_sims[uname]:
+      cross_sims[uname][uname_other] = np.array(cross_sims[uname][uname_other])
+  return cross_sims
+
+
+"""
+Returns the number of times "online" appears in this list of usernames.
+"""
+def get_number_online(other_array):
+  return ['online' in x for x in other_array].count(True)
+
+"""
+Calls get_number_online for all commits of each user in top_sims.
+"""
+def get_top_sims_online(top_sims):
+  online_sims = {}
+  for uname in top_sims:
+    online_sims[uname] = get_number_online(\
+        [top_sims[uname][posix_time][0] \
+            for posix_time in top_sims[uname]])
+  return online_sims
+
 def get_all_output_f(all_sims):
   all_output_f = set()
   for uname in all_sims:
@@ -53,6 +126,7 @@ def load_all_sims_from_log(output_dir, year_q):
 
 def write_all_moss_similar(moss_dir, year_q, output_dir, use_diff=0):
   moss_dir = os.path.join(moss_dir, year_q)
+  add_str = ''
   output_yq_dir = os.path.join(output_dir, year_q, output_moss_dir)
   if use_diff == 1: # only use inserts for now?
     moss_dir = os.path.join(moss_dir, 'insert')

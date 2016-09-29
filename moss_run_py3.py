@@ -594,7 +594,7 @@ if __name__ == "__main__":
     #                   FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
     #                   STARTER_DIR_NAME,
     #                   MOSS_OUTPUT_DIR))
-    year_q_dirname = '2013_1'
+    year_q_dirname = '2014_1'
     pymoss.util.time("Running lecture moss", lambda:
                   multi_moss_lecture(TARGET_DIR, year_q_dirname,
                       LECTURE_DIR_NAME, ONLINE_DIR_NAME,

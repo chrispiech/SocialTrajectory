@@ -34,9 +34,9 @@ day_length = 86400
 pst_shift = 25200
 incr_length = day_length/2 # 12 hours
 
-all_start_time = mktime(datetime(2012,10,15,tzinfo=pst).timetuple())
-all_end_time = mktime(datetime(2012,10,24,15,15,tzinfo=pst).timetuple()) # deadline
-all_end_time = mktime(datetime(2012,10,25, 1, 0,tzinfo=pst).timetuple())
+# all_start_time = mktime(datetime(2012,10,15,tzinfo=pst).timetuple())
+# all_end_time = mktime(datetime(2012,10,24,15,15,tzinfo=pst).timetuple()) # deadline
+# all_end_time = mktime(datetime(2012,10,25, 1, 0,tzinfo=pst).timetuple())
 
 # dictionary of posix values
 START_TIME, END_TIME = 0, 1
@@ -263,6 +263,7 @@ def export_uname_lookup_by_year_q(uname_lookup_by_year_q):
     with open(lookup_dest, 'w') as f:
       unames_by_year = uname_lookup_by_year_q[year_q].values()
       unames_by_year.sort()
+      print "saving %s unames to quarter %s" % (len(unames_by_year), year_q)
       temp_uname_dict = {}
       for uname, student_id in uname_lookup_by_year_q[year_q].iteritems():
         temp_uname_dict[student_id] = uname
@@ -497,3 +498,83 @@ def get_graderank_dict(grades_dict, mt_max=140.0, f_max=180.0):
   for i in range(len(grade_list)):
     rankdict[str(unames[i])] = (all_grades[i], all_ranks[i])
   return rankdict
+
+"""
+Get number of ta sessions and hours (posix secs) within a certain period.
+
+Can get ta sessions for only a particular ta as well.
+"""
+def get_ta_lengths(lair_dict, uname, assgt_no=-1, only_ta_uname=None):
+  uname_year, uname_q = uname[:4], uname[4:6]
+  year_q = '%s_%s' % (int(uname_year), int(uname_q))
+  st_bound = all_startend_times[year_q][START_TIME]
+  end_bound = all_startend_times[year_q][END_TIME]
+  if assgt_no != -1:
+    st_bound = all_startend_times[year_q][START_TIME]
+    end_bound = all_startend_times[year_q][END_TIME]
+
+  ta_length = 0
+  ta_posix_length = 0
+  for start_ta_time, end_ta_time, ta_uname in lair_dict[uname]:
+    if start_ta_time >= st_bound and end_ta_time <= end_bound:
+      if only_ta_uname and ta_uname is not only_ta_uname:
+        continue
+      ta_length += 1
+      ta_posix_length += end_ta_time - start_ta_time
+
+  return ta_length, ta_posix_length
+
+"""
+Returns start/end/student uname for all tas for this particular lair_dict.
+Can get total time helped by summing up numpy column.
+start_times, end_times, student unames
+"""
+def get_ta_teaching_times(lair_dict, assgt_no=-1):
+  ta_dict = {}
+  for uname in lair_dict:
+    uname_year, uname_q = uname[:4], uname[4:6]
+    year_q = '%s_%s' % (int(uname_year), int(uname_q))
+    st_bound = all_startend_times[year_q][START_TIME]
+    end_bound = all_startend_times[year_q][END_TIME]
+    if assgt_no != -1:
+      st_bound = all_startend_times[year_q][START_TIME]
+      end_bound = all_startend_times[year_q][END_TIME]
+    for start_ta_time, end_ta_time, ta_uname in lair_dict[uname]:
+      if start_ta_time >= st_bound and end_ta_time <= end_bound:
+        if ta_uname not in ta_dict:
+          ta_dict[ta_uname] = {}
+        if uname not in ta_dict[ta_uname]:
+          ta_dict[ta_uname][uname] = []
+        ta_dict[ta_uname][uname].append((start_ta_time, end_ta_time))
+  for ta_uname in ta_dict:
+    for uname in ta_dict[ta_uname]:
+      ta_dict[ta_uname][uname] = np.array(ta_dict[ta_uname][uname])
+
+  return ta_dict
+
+"""
+Returns z-score of an assignment.
+"""
+def get_z_scores(tot_np, grade_ind, scores):
+  tot_grades = tot_np[:,grade_ind]
+  mean = np.average(tot_grades)
+  stdev = np.std(tot_grades)
+  return (scores - mean)/stdev
+
+"""
+Compares value to a list of values, and returns
+the bin that this value fits into.
+bins: [1, 2, 3, 4]
+val: 0.5 --> returns 0
+val: 1 --> returns 0
+val: 1.5 --> returns 0
+val: 2 --> returns 1
+val: 4.5 --> returns 3
+"""
+def get_bins(val, bins):
+  if val < bins[0]:
+    return 0
+  for i in range(len(bins) - 1):
+    if val < bins[i+1]:
+      return i
+  return len(bins)-1
