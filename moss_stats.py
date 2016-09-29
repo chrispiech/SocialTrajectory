@@ -19,13 +19,28 @@ def moss_online(moss_dir, year_q, output_dir):
     print online_np.shape, online_sims[uname][:token_ind], np.average(online_np[:,token_ind]), np.average(online_np[:,p_self_ind]), np.average(online_np[:,p_other_ind])
 
   cross_sims = load_top_sims_by_uname(output_dir, year_q)
+  num_sims = []
+  num_tokens
   for uname in cross_sims:
+    print uname
     for uname_other in cross_sims[uname]:
-      if uname_other in online_sims:
-        cross_np = cross_sims[uname][uname_other]
-        print uname, uname_other, cross_np.shape
-        #print '\t', np.average(cross_np[:,token_ind]), np.average(cross_np[:,p_self_ind]), np.average(cross_np[:,p_other_ind])
-        print '\t', np.amax(cross_np[:,token_ind]), np.amax(cross_np[:,p_self_ind]), np.amax(cross_np[:,p_other_ind])
+      cross_np = cross_sims[uname][uname_other]
+      #print np.amax(cross_np,axis=0).tolist()
+      _, _, max_token, max_p_self, max_p_other = np.amax(cross_np,axis=0).tolist()
+      _, _, avg_token, avg_p_self, avg_p_other = np.average(cross_np,axis=0).tolist()
+      print '\t', uname_other, cross_np.shape[0]
+      print '\t\t', max_token
+      num_sims.append(cross_np.shape[0])
+      # if uname_other in online_sims:
+      #   #print '\t', np.average(cross_np[:,token_ind]), np.average(cross_np[:,p_self_ind]), np.average(cross_np[:,p_other_ind])
+      #   print '\t', np.amax(cross_np[:,token_ind]), np.amax(cross_np[:,p_self_ind]), np.amax(cross_np[:,p_other_ind])
+  #histogram things
+  hist, bin_edges = np.histogram(num_sims, bins=np.linspace(0,10,num=10))
+  together = zip(hist.tolist(), bin_edges.tolist())
+  print "number of sims to each "
+  print '\n'.join(map(str, together))
+  # print hist
+  # print bin_edges
 
 def make_moss_graphs_multi(output_dir, regular=True):
   make_moss_graphs(output_dir, year_q=None, regular=regular)

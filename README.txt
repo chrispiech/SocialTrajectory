@@ -12,14 +12,15 @@ To perform tokenizer:
 
 Code dependencies:
 sudo apt-get install python-dev
+sudo apt-get install python-numpy python-scipy
 sudo apt-get install python-matplotlib
-pip install numpy
-sudo apt-get install python-matplotlib
-sudo apt-get install libxml2-dev libxslt1-dev zlib1g-dev
-sudo apt-get install python-lxml
 git clone https://github.com/yanlisa/javalang.git
 cd javalang
 sudo python setup.py install
 sudo apt-get install python-lxml
+
+#sudo apt-get install python-matplotlib
+#pip install numpy
+#sudo apt-get install libxml2-dev libxslt1-dev zlib1g-dev
 
 If running with SSH, SSH -X or -Y for plotting.
