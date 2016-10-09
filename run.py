@@ -10,6 +10,7 @@ from prob_tool import *
 from diff_tool import *
 from diff_stats import *
 from lecture_stats import *
+from comp_stats import *
 import random
 
 top_dir = load_path() # from helper.py
@@ -58,9 +59,10 @@ def run(code_dir, target_dir, final_submissions_dir, output_dir):
   pass
 
 def graph_general(code_dir, output_dir):
-  #all_timestamps(code_dir, output_dir)
+  all_timestamps(code_dir, output_dir)
   #plot_times(output_dir)
   #graph_gradetime_multi(output_dir)
+  return
   plot_ta_stats_multi(output_dir)
   for year_q_dirname in os.listdir(output_dir):
     try:
@@ -83,7 +85,7 @@ def diff(moss_dir, code_dir, output_dir):
 def moss(moss_dir, output_dir, final_submissions_dir):
   #output_dir = '%s_mass' % output_dir
   #for year_q_dirname in os.listdir(output_dir):
-  #make_moss_graphs_multi(output_dir)
+  make_moss_graphs_multi(output_dir)
   for year_q_dirname in ['2012_1', '2013_1', '2014_1']:
     try:
       year, q = year_q_dirname.split('_')
@@ -92,10 +94,17 @@ def moss(moss_dir, output_dir, final_submissions_dir):
     print "Processing moss output for dir %s" % (year_q_dirname)
     #year_q_dirname = 'noonline_2012_1'
     #moss_process(moss_dir, year_q_dirname, output_dir)
-    moss_online(moss_dir, year_q_dirname, output_dir)
-    break
-    #make_moss_graphs(output_dir, year_q_dirname)
+    make_moss_graphs(output_dir, year_q_dirname)
     #create_gephi(output_dir, year_q_dirname)
+
+def component(output_dir):
+  #component_stats_multi(output_dir)
+  for year_q_dirname in ['2012_1', '2013_1', '2014_1']:
+    try:
+      year, q = year_q_dirname.split('_')
+      int(year), int(q)
+    except: continue
+    component_stats(output_dir, year_q_dirname)
 
 def lecture(output_dir):
   lecture_plot(output_dir, '2012_1')
@@ -187,7 +196,8 @@ if __name__ == "__main__":
   #graph_general(CODE_DIR, OUTPUT_DIR)
   #make_holdout(CODE_DIR, HOLDOUT_DIR, EXPT_DIR)
   #anonymize(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, COMMIT_DIR)
-  moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
+  component(OUTPUT_DIR)
+  #moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
   #lecture(OUTPUT_DIR)
   #gephi(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR)
   #tokenize(COMMIT_DIR, OUTPUT_DIR)

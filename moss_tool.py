@@ -54,24 +54,52 @@ def load_online_stats(output_dir, year_q):
                             np.array(online_info))
   return online_sims
 
-def load_top_sims_by_uname(output_dir, year_q):
+def load_top_sims_by_uname(top_sims):
   cross_sims = {}
-  top_sims = load_top_sims_from_log(output_dir, year_q)
+  cross_names = {}
   for uname in top_sims:
     posix_times = top_sims[uname].keys()
     posix_times.sort()
     cross_sims[uname] = {}
+    cross_names[uname] = {}
     for commit_ind, posix_time in enumerate(posix_times):
-      uname_other, tokens, percent_self, percent_other,_,_ = \
+      uname_other, tokens, percent_self, percent_other, _, commit_hash = \
           top_sims[uname][posix_time]
       if uname_other not in cross_sims[uname]:
         cross_sims[uname][uname_other] = []
+        cross_names[uname][uname_other] = []
       cross_sims[uname][uname_other].append(
           (int(posix_time), commit_ind, tokens, percent_self, percent_other))
+      cross_names[uname][uname_other].append('%s_%s_%s' % (uname, posix_time, commit_hash))
     for uname_other in cross_sims[uname]:
       cross_sims[uname][uname_other] = np.array(cross_sims[uname][uname_other])
-  return cross_sims
+  return cross_sims, cross_names
 
+def load_components_info(output_dir, year_q):
+  components = {}
+  edges = {}
+  comp_f_name = '%s_components.csv' % year_q
+  with open(os.path.join(output_dir, comp_f_name), 'r') as f:
+    for line in f.readlines():
+      line = line.strip()
+      if len(line.split(',')) != 4: continue
+      uname, group_id, indegree, outdegree = line.split(',')
+      components[uname] = (int(group_id), int(indegree), int(outdegree))
+  edge_f_name = '%s_edges.csv' % year_q
+  with open(os.path.join(output_dir, edge_f_name), 'r') as f:
+    for line in f.readlines():
+      line = line.strip()
+      if len(line.split(',')) < 4: continue
+      uname, uname_other, commit_hash, posix_time = line.split(',')[:4]
+      info = line.split(',')[4:]
+      info = map(float, info[1:])
+      if uname not in edges:
+        edges[uname] = {}
+      if uname_other not in edges[uname]:
+        edges[uname][uname_other] = {}
+      edges[uname][uname_other][posix_time] = \
+          tuple([uname_other, commit_hash] + info)
+  return components, edges
 
 """
 Returns the number of times "online" appears in this list of usernames.
@@ -219,7 +247,7 @@ report_html: usually reportX.html
 percent_self: the number of tokens over all self's tokens
 percent_other: the number of tokens over all other's tokens
 """
-def write_moss_similar(moss_dir, commit, output_dir=None):
+def write_moss_similar(moss_dir, commit, output_dir=None, add_str=''):
   commit_dir = os.path.join(moss_dir, commit)
   #uname = '_'.join(commit.split('_')[:2]) # ignores additional integer, e.g. uid_1
   uname = commit.split('_')[0] # now only user id anyway

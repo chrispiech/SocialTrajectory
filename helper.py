@@ -27,6 +27,16 @@ top_dir = load_path()
 def call_cmd(cmd):
   return subprocess.Popen([cmd],stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).communicate()
 
+# threshold stuff for grouping
+thresh_token = 250
+thresh_p_self = 0
+thresh_p_other = 25 
+def check_thresh(tokens, p_self, p_other):
+  # info_list: (tokens, p_self, p_other) -- could be strings.
+  #print "check", (tokens, p_self, p_other), "vs", (thresh_token, thresh_p_self, thresh_p_other)
+  return tokens >= thresh_token and p_self >= thresh_p_self and p_other >= thresh_p_other
+
+
 # time stuff
 pst = pytz.timezone('US/Pacific')
 utc = pytz.utc
@@ -140,16 +150,43 @@ def posix_to_time(posix_t):
   return posix_to_datetime(posix_t, format_str='%H:%M')
 
 # top sim loading
-add_str = ''
-def load_top_sims_from_log(output_dir, year_q, use_diff=0):
-  global add_str
+def load_top_sims_from_log(output_dir, year_q, use_diff=0, add_str=''):
   if use_diff == 1:
     year_q = 'diff_%s' % year_q
     add_str = '_insert'
   elif use_diff == 2:
     year_q = 'diff_%s' % year_q
     add_str = '_delete'
-  top_sim_path = os.path.join(output_dir, "%s_top_sim%s.csv" % (year_q, add_str))
+  if add_str == 'both' or add_str == 'both_':
+    top_sims_online = load_top_sims_from_log(output_dir, year_q, add_str='online_')
+    top_sims_reg = load_top_sims_from_log(output_dir, year_q)
+    for uname, online_dict in top_sims_online.iteritems():
+      if uname not in top_sims_reg:
+        print "adding new uname here", uname
+        top_sims_reg[uname] = online_dict
+      else:
+        reg_dict = top_sims_reg[uname]
+        # Tends to be the smallest one used when matching on token 25, so just replace? idk
+        replace_add = []
+        tot_add = len(online_dict)
+        for posix_time, info_tup in online_dict.iteritems():
+
+          if posix_time not in reg_dict:
+            reg_dict[posix_time] = info_tup
+          else:
+            token_ind = 1
+            # smallest token match is 25, so ignore
+            if info_tup[token_ind] < 30 or 'online' in reg_dict[posix_time][0]:
+              continue
+            elif info_tup[token_ind] >= reg_dict[posix_time][token_ind]:
+              replace_add.append((info_tup[token_ind], reg_dict[posix_time][token_ind], reg_dict[posix_time][0]))
+              reg_dict[posix_time] = info_tup
+        if len(replace_add) > 0:
+          #print "uname %s: added %d/%d: %s" % (uname, len(replace_add), tot_add, replace_add)
+          pass
+    return top_sims_reg
+
+  top_sim_path = os.path.join(output_dir, "%s%s_top_sim.csv" % (add_str, year_q))
   top_sims = {}
   print ">>>>>>>>%s" % top_sim_path
   with open(top_sim_path, 'r') as f:
