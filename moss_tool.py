@@ -59,6 +59,7 @@ def load_top_sims_by_uname(top_sims):
   cross_names = {}
   for uname in top_sims:
     posix_times = top_sims[uname].keys()
+    num_commits = float(len(posix_times))
     posix_times.sort()
     cross_sims[uname] = {}
     cross_names[uname] = {}
@@ -69,7 +70,7 @@ def load_top_sims_by_uname(top_sims):
         cross_sims[uname][uname_other] = []
         cross_names[uname][uname_other] = []
       cross_sims[uname][uname_other].append(
-          (int(posix_time), commit_ind, tokens, percent_self, percent_other))
+          (int(posix_time), commit_ind/num_commits, tokens, percent_self, percent_other))
       cross_names[uname][uname_other].append('%s_%s_%s' % (uname, posix_time, commit_hash))
     for uname_other in cross_sims[uname]:
       cross_sims[uname][uname_other] = np.array(cross_sims[uname][uname_other])
@@ -100,6 +101,27 @@ def load_components_info(output_dir, year_q):
       edges[uname][uname_other][posix_time] = \
           tuple([uname_other, commit_hash] + info)
   return components, edges
+  
+def get_grps(comps, edges):
+  components = {}
+  for uname, (grp, ind, outd) in comps.iteritems():
+    grp_uname = '%s_%s' % (grp, uname[:6])
+    if grp == 0: # the online one
+      grp_uname = "0"
+    if grp_uname not in components:
+      components[grp_uname] = []
+
+    components[grp_uname].append(uname)
+
+  components_list = []
+  grp_nums = sorted(components.keys())
+  count = 0
+  for grp in grp_nums:
+    count += len(components[grp])
+    print sorted(components[grp])
+    components_list.append(components[grp])
+  print "count components:", count
+  return components_list
 
 """
 Returns the number of times "online" appears in this list of usernames.
@@ -271,6 +293,7 @@ def write_moss_similar(moss_dir, commit, output_dir=None, add_str=''):
   # first table, ignore title row
   sim_elts = (t.xpath("/html/body/table")[0]).xpath("tr")[1:]
   for sim_elt in sim_elts:
+    self_f = ((sim_elt.find_class("name0"))[0]).xpath("a")[0].text.split('/')[-1]
     rank = int(sim_elt.find_class("rank")[0].text) # ignored
     other_f = ((sim_elt.find_class("name1"))[0]).xpath("a")[0]
     other_f_path, report_html = other_f.text, other_f.get('href')
@@ -282,12 +305,15 @@ def write_moss_similar(moss_dir, commit, output_dir=None, add_str=''):
       # don't save similarities to your own final submission
       similarities.append((other_f_path, report_html,
                 tokens_matched, percent_self, percent_other))
+    # similarities.append((self_f, other_f_path, report_html,
+    #           tokens_matched, percent_self, percent_other))
 
   if output_dir:
     output_path = os.path.join(output_dir, '%s%s.csv' % (commit, add_str))
     with open(output_path, 'w') as f:
       for sim in similarities: # ignore rank!!
-        f.write('%s,%s,%d,%.2f,%.2f\n' % sim)
+        f.write('%s,%s,%s,%d,%.2f,%.2f\n' % sim)
+        #f.write('%s,%s,%s,%d,%.2f,%.2f\n' % sim) # for baseline
   return similarities
   
 def moss_top_similar(similarities, commit):

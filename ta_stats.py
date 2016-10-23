@@ -28,7 +28,16 @@ def plot_ta_stats_multi(output_dir):
   #plot_ta_service_times(output_dir)
   plot_ta_deviation_stats(output_dir)
 
-def get_ta_stats(output_dir, year_q=None):
+ALL_TA_TIME = 0
+ASSGT_ONLY_TA_TIME = 1
+B4_ASSGT_DEAD_TA_TIME = 2
+B4_MT_TIME = 3
+BT_MT_FINAL_TIME = 4
+LATE_ASSGT_TA_TIME = 5
+B4_ASSGT_TIME = 6
+ta_bounds_str = ['allta', 'onlyassgt3', 'untilassgt3deadline', 'beforemt', 'btexams', 'lateta', 'b4assgt']
+
+def get_ta_stats(output_dir, year_q=None, ta_bounds=ALL_TA_TIME, work_limit=0):
   year_q_list = []
   lair_dict = {}
   posix_lookup = {}
@@ -65,8 +74,27 @@ def get_ta_stats(output_dir, year_q=None):
 
   all_stats = []
   uname_stats = []
+  # default bounds are assignment only ASSGT_ONLY_TA_TIME
   start_time_bound = all_startend_times[year_q][START_TIME]
-  end_time_bound = all_startend_times[year_q][END_TIME]
+  end_time_bound = all_startend_times[year_q][END_TIME] + 2*day_length
+  if ta_bounds == B4_ASSGT_DEAD_TA_TIME:
+    start_time_bound = 0
+    end_time_bound = all_startend_times[year_q][END_TIME] + 2*day_length
+  elif ta_bounds == B4_MT_TIME:
+    start_time_bound = 0 # no bound...
+    end_time_bound = all_exam_times[year_q][MT_TIME]
+  elif ta_bounds == BT_MT_FINAL_TIME:
+    start_time_bound = all_exam_times[year_q][MT_TIME]
+    end_time_bound = all_exam_times[year_q][FINAL_TIME]
+  elif ta_bounds == LATE_ASSGT_TA_TIME:
+    start_time_bound = all_startend_times[year_q][END_TIME] - 3.5*day_length
+    end_time_bound = all_startend_times[year_q][END_TIME] + 2*day_length
+  elif ta_bounds == B4_ASSGT_TIME:
+    start_time_bound = 0
+    end_time_bound = all_startend_times[year_q][START_TIME]
+  elif ta_bounds == ALL_TA_TIME:
+    start_time = 0
+    end_time_bound = all_exam_times[year_q][FINAL_TIME]
   # for uname in lair_dict:
   #   if uname not in posix_lookup:
   #     # could be possible if uname is in holdout set
@@ -91,16 +119,25 @@ def get_ta_stats(output_dir, year_q=None):
       for start_ta_time, end_ta_time, ta_uname in lair_dict[uname]:
         start_ta_time = scale_days(start_ta_time, uname_year_q, year_q)
         end_ta_time = scale_days(end_ta_time, uname_year_q, year_q)
-        if start_ta_time >= start_time_bound and start_ta_time <= end_time_bound:
-          pass
-        if True:
-          all_stats.append([start_ta_time, end_ta_time,
+        if ta_bounds != 0:
+          if end_ta_time <= start_time_bound:
+            continue
+          if start_ta_time >= end_time_bound:
+            continue
+          # ta help was outside of assignment time limit
+        if work_limit:
+          # work limit supplied in addition to ta bounds
+          if start_ta_time >= work_limit:
+            continue
+          if end_ta_time >= work_limit:
+            end_ta_time = work_limit-1 # idk why off by one here, but i'm doing it
+        all_stats.append([start_ta_time, end_ta_time,
                             start_posix, end_posix, num_commits,
                             int(uname), int(ta_uname)] + \
                             gr_uname_abs + \
                             gr_uname_rank)
-          ta_length += 1
-          ta_posix_length += end_ta_time - start_ta_time
+        ta_length += 1
+        ta_posix_length += end_ta_time - start_ta_time
     #if ta_length == 0: continue
     uname_stats.append([ta_length, ta_posix_length,
                         start_posix, end_posix, num_commits,
@@ -111,7 +148,6 @@ def get_ta_stats(output_dir, year_q=None):
   uname_stats_np = np.array(uname_stats)
 
   return lair_dict, year_q_list, all_stats_np, uname_stats_np, 
-
 
 def plot_ta_service_times(output_dir, year_q=None):
   try:

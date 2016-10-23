@@ -28,13 +28,47 @@ def call_cmd(cmd):
   return subprocess.Popen([cmd],stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).communicate()
 
 # threshold stuff for grouping
-thresh_token = 250
+thresh_token = 250 # 180 # for baseline: 180,23
 thresh_p_self = 0
-thresh_p_other = 25 
-def check_thresh(tokens, p_self, p_other):
-  # info_list: (tokens, p_self, p_other) -- could be strings.
-  #print "check", (tokens, p_self, p_other), "vs", (thresh_token, thresh_p_self, thresh_p_other)
+thresh_p_other = 25
+def check_thresh(tokens, p_self, p_other,norm_commit=0, meds=None):
+  #print tokens >= thresh_token and p_self >= thresh_p_self and p_other >= thresh_p_other
   return tokens >= thresh_token and p_self >= thresh_p_self and p_other >= thresh_p_other
+
+  # ignore the below, which uses meds as well.
+  if not meds:
+    return tokens >= thresh_token and p_self >= thresh_p_self and p_other >= thresh_p_other
+
+  floor_norm_commit = float('%.3f' % norm_commit)
+  token_med, _, p_other_med = meds[floor_norm_commit]
+  return tokens > token_med and p_other > p_other_med
+
+def get_hours(posix_list, work_limit=0):
+  posix_list = map(int, posix_list)
+  posix_list.sort()
+  if work_limit:
+    posix_list = filter(lambda posix: posix < work_limit, posix_list)
+  num_seconds = 0.0
+  time_worked = []
+  posix_worked = []
+  gap = float(day_length/24)/2 # half an hour
+  if not posix_list: # not started work
+    return num_seconds, posix_worked
+  diffs = (np.array(posix_list[1:]) - np.array(posix_list[:-1])).tolist()
+  num_seconds = sum(filter(lambda diff: diff < gap, diffs))
+  gap_indices = filter(lambda i: i != -1, map(lambda (i, diff): i if diff >= gap else -1, enumerate(diffs)))
+  prev_ind = 0
+  for gap_index in gap_indices:
+    if prev_ind != gap_index:
+      posix_worked.append((posix_list[prev_ind], posix_list[gap_index]))
+      time_worked.append(sum(diffs[prev_ind:gap_index]))
+    prev_ind = gap_index+1
+  if prev_ind != len(diffs):
+    posix_worked.append((posix_list[prev_ind], posix_list[-1]))
+    time_worked.append(sum(diffs[prev_ind:]))
+
+  return num_seconds/float(day_length/24), posix_worked
+
 
 
 # time stuff
@@ -50,24 +84,35 @@ incr_length = day_length/2 # 12 hours
 
 # dictionary of posix values
 START_TIME, END_TIME = 0, 1
-all_startend_times = {'2012_1': (mktime(datetime(2012,10,15,13,15,tzinfo=pst).timetuple()),
-                        mktime(datetime(2012,10,24,15,15,tzinfo=pst).timetuple())), # 3:15pm (9)
-                      '2013_2': (mktime(datetime(2013, 1,30,14,58,tzinfo=pst).timetuple()),
-                        mktime(datetime(2013, 2, 8,15,15,tzinfo=pst).timetuple())), # 3:15pm (9)
-                      '2013_3': (mktime(datetime(2013, 4,19,13,34,tzinfo=pst).timetuple()),
-                        mktime(datetime(2013, 4,29,13,15,tzinfo=pst).timetuple())), # 1:15pm (10)
-                      '2013_4': (mktime(datetime(2013, 7, 7,16,23,tzinfo=pst).timetuple()),
-                        mktime(datetime(2013, 7,16,13,15,tzinfo=pst).timetuple())), # 1:15pm (9)
-                      '2013_1': (mktime(datetime(2013,10,13,19, 5,tzinfo=pst).timetuple()),
-                        mktime(datetime(2013,10,23,15,15,tzinfo=pst).timetuple())), # 3:15pm (10)
-                      '2014_2': (mktime(datetime(2014, 1,31,21, 2,tzinfo=pst).timetuple()),
-                        mktime(datetime(2014, 2,10,15,15,tzinfo=pst).timetuple())), # 3:15pm (10)
-                      '2014_3': (mktime(datetime(2014, 4,21,10,23,tzinfo=pst).timetuple()),
-                        mktime(datetime(2014, 4,30,12, 0,tzinfo=pst).timetuple())), # 12:00pm (9)
-                      '2014_4': (mktime(datetime(2014, 7, 9,14, 8,tzinfo=pst).timetuple()),
-                        mktime(datetime(2014, 7,17,16, 0,tzinfo=pst).timetuple())), # 4:00pm (8)
-                      '2014_1': (mktime(datetime(2014,10,13,13,26,tzinfo=pst).timetuple()),
-                        mktime(datetime(2014,10,22,15,15,tzinfo=pst).timetuple()))} # 3:15pm (9)
+all_startend_times = {\
+    '2012_1': (mktime(datetime(2012,10,15,13,15,tzinfo=pst).timetuple()),
+      mktime(datetime(2012,10,24,15,15,tzinfo=pst).timetuple())), # 3:15pm (9)
+    '2013_2': (mktime(datetime(2013, 1,30,14,58,tzinfo=pst).timetuple()),
+      mktime(datetime(2013, 2, 8,15,15,tzinfo=pst).timetuple())), # 3:15pm (9)
+    '2013_3': (mktime(datetime(2013, 4,19,13,34,tzinfo=pst).timetuple()),
+      mktime(datetime(2013, 4,29,13,15,tzinfo=pst).timetuple())), # 1:15pm (10)
+    '2013_4': (mktime(datetime(2013, 7, 7,16,23,tzinfo=pst).timetuple()),
+      mktime(datetime(2013, 7,16,13,15,tzinfo=pst).timetuple())), # 1:15pm (9)
+    '2013_1': (mktime(datetime(2013,10,13,19, 5,tzinfo=pst).timetuple()),
+      mktime(datetime(2013,10,23,15,15,tzinfo=pst).timetuple())), # 3:15pm (10)
+    '2014_2': (mktime(datetime(2014, 1,31,21, 2,tzinfo=pst).timetuple()),
+      mktime(datetime(2014, 2,10,15,15,tzinfo=pst).timetuple())), # 3:15pm (10)
+    '2014_3': (mktime(datetime(2014, 4,21,10,23,tzinfo=pst).timetuple()),
+      mktime(datetime(2014, 4,30,12, 0,tzinfo=pst).timetuple())), # 12:00pm (9)
+    '2014_4': (mktime(datetime(2014, 7, 9,14, 8,tzinfo=pst).timetuple()),
+      mktime(datetime(2014, 7,17,16, 0,tzinfo=pst).timetuple())), # 4:00pm (8)
+    '2014_1': (mktime(datetime(2014,10,13,13,26,tzinfo=pst).timetuple()),
+      mktime(datetime(2014,10,22,15,15,tzinfo=pst).timetuple()))} # 3:15pm (9)
+
+MT_TIME = 0
+FINAL_TIME = 1
+all_exam_times = {'2012_1': (mktime(datetime(2012, 11,  1,19, 0, tzinfo=pst).timetuple()),
+                             mktime(datetime(2012, 12, 14,12,15, tzinfo=pst).timetuple())),
+                  '2013_1': (mktime(datetime(2013, 10, 29,19, 0, tzinfo=pst).timetuple()),
+                             mktime(datetime(2013, 12, 12,12,15, tzinfo=pst).timetuple())),
+                  '2014_1': (mktime(datetime(2014, 10, 29,19, 0, tzinfo=pst).timetuple()),
+                             mktime(datetime(2014, 12, 10,12,15, tzinfo=pst).timetuple()))}
+
 
 def posix_to_datetime(posix_t, format_str=None):
   if not format_str:
@@ -120,7 +165,7 @@ def scale_days(posix_times, old_year_q, new_year_q=None):
 """
 plus_minus: integer (or decimal) of extra days to tack on to borders.
 """
-def get_day_range(year_q, plus_minus=None, incr=None):
+def get_day_range(year_q, plus_minus=None, incr=None, include_point=None):
   if not plus_minus:
     plus_minus = [0, 0]
   if not incr:
@@ -129,7 +174,14 @@ def get_day_range(year_q, plus_minus=None, incr=None):
   end_floor = date_floor(all_startend_times[year_q][END_TIME])
   start_posix = start_floor + plus_minus[START_TIME]*day_length
   end_posix = end_floor + plus_minus[END_TIME]*day_length
-  return np.arange(start_posix, end_posix+1, incr)
+  if not include_point:
+    return np.arange(start_posix, end_posix+1, incr)
+
+  if include_point < start_posix or include_point > end_posix:
+    print "Error in getting day range :|"
+  early_range = np.arange(include_point, start_posix-(incr-1), -incr).tolist()[::-1]
+  late_range = np.arange(include_point, end_posix, incr).tolist()[1:]
+  return early_range + late_range
 
 
 """
@@ -244,7 +296,7 @@ def moss_okay(commit_dir, filetype=FILETYPE):
 def get_uname_from_f(output_f):
   # format: final_submissions/year_q_username_num
   # return add username_num
-  if "final_submissions" in output_f:
+  if "final_submissions" in output_f or 'baseline' in output_f:
     #return '_'.join((output_f.split('/')[-1]).split('_')[2:])
     return output_f.split('/')[-1]
   else:
@@ -319,7 +371,7 @@ def export_uname_lookup_by_year_q(uname_lookup_by_year_q):
 This marks the 95th percentile for similarities at any given timestep.
 (well, this doesn't actually plot it, but that would be the intention)
 """
-def med_calc(times, sims, med_thresh=87):
+def med_calc(times, sims, med_thresh=95):
   points_by_time = {}
   for i in range(len(times)):
     #   
@@ -615,3 +667,92 @@ def get_bins(val, bins):
     if val < bins[i+1]:
       return i
   return len(bins)-1
+
+"""
+Use kmeans with k=2 to separate data along a single axis (x by default).
+The secondary axis is supplied mainly for plotting purposes.
+"""
+from scipy import stats as spstats
+from sklearn.cluster import DBSCAN
+from sklearn.cluster import KMeans
+from sklearn import metrics
+from sklearn.datasets.samples_generator import make_blobs
+from sklearn.preprocessing import StandardScaler
+
+def is_time(arr_or_list):
+  np_arr = np.array(arr_or_list)
+  return np.average(np_arr) >= all_startend_times['2012_1'][START_TIME]
+
+def separate_kmeans_plot(output_dir, year_q_list,
+                    info_np, x_ind, y_ind, titles,
+                    k=2, use_y=False, plotstr=None):
+  # print "t-test for late vs early", \
+  #     spstats.ttest_ind(late_times, early_times,
+  #         equal_var=False)
+  # print "wilcoxon test for late - early", \
+  #     spstats.ranksums(late_times, early_times)
+  # print "chi stats, late: %s, early: %s" % \
+  #     (spstats.normaltest(late_times),
+  #         spstats.normaltest(early_times))
+  data_info = info_np[:,x_ind]
+  if use_y:
+    data_info = info_np[:,y_ind]
+  skout = KMeans(n_clusters=k, random_state=0).fit(data_info.reshape(-1, 1))
+  # example for DBscan:
+  # http://scikit-learn.org/stable/auto_examples/cluster/plot_dbscan.html#sphx-glr-auto-examples-cluster-plot-dbscan-py
+  labels = skout.labels_
+  thresh_sep = np.average(skout.cluster_centers_)
+
+  # Number of clusters in labels, ignoring noise if present.
+  unique_labels = set(labels)
+  colors = plt.cm.Spectral(np.linspace(0, 1, len(unique_labels)))
+  fig = plt.figure()
+  ax = plt.gca()
+  for k_val, col in zip(unique_labels, colors):
+    class_member_mask = (labels == k_val)
+    xy = info_np[class_member_mask]
+
+    ax.plot(xy[:,x_ind], xy[:,y_ind], 'o', markerfacecolor=col,
+                    markeredgecolor='k', markersize=6)
+  posix_range = get_day_range(max(year_q_list),plus_minus=[0,2], incr=day_length) # daily
+  posix_labels = map(lambda x: posix_to_datetime(x, format_str='%m/%d'), posix_range)
+
+  ax.set_xlabel(titles[x_ind])
+  if is_time(info_np[:,x_ind]):
+    ax.set_xlim(min(posix_range), max(posix_range))
+    ax.set_xticks(posix_range)
+    ax.set_xticklabels(posix_labels, fontsize=8, rotation=45)
+  ax.set_ylabel(titles[y_ind])
+  if is_time(info_np[:,y_ind]):
+    ax.set_ylim(min(posix_range), max(posix_range))
+    ax.set_yticks(posix_range)
+    ax.set_yticklabels(posix_labels, fontsize=8, rotation=45)
+
+  ax.set_title('kmeans separation with %d clusters' % k)
+  fig_prefix = '%s_clustersep_%s_%s' % ('_'.join(year_q_list), titles[x_ind], titles[y_ind])
+  try:
+    '_'.split(year_q_list)
+    fig_prefix = '%s_clustersep_%s_%s' % (year_q_list, titles[x_ind], titles[y_ind])
+  except:
+    pass
+  if use_y:
+    fig_prefix += '_y'
+  if plotstr:
+    fig_prefix += '_%s' % plotstr
+  fig_dest = os.path.join(output_dir, '%s.png' % fig_prefix)
+  print "Saving kmeans cluster figure to", fig_dest
+  fig.savefig(fig_dest)
+  return thresh_sep
+
+def load_meds(output_dir):
+  med_by_normcommit = {}
+  with open(os.path.join(output_dir, 'moss_meds.csv'), 'r') as f:
+    line = f.readline()
+    line = f.readline()
+    while line:
+      line = line.strip()
+      norm_commit, token, percent_self, percent_other = line.split(',')
+      med_by_normcommit[float(norm_commit)] = (float(token), float(percent_self), float(percent_other))
+      line = f.readline()
+  #print ">>>>>>med norm commit", med_by_normcommit
+  return med_by_normcommit
