@@ -71,7 +71,8 @@ def cvmodel(output_dir, year_q=None):
   
   all_info_np = np.array(info + non_info)
 
-  feature_inds = [commits_ind, ta_h_b4_ind, ta_h_during_ind, hrs_ind, assgt1_r_ind, assgt2_r_ind]
+  feature_inds = [avg_t_ind, avg_po_ind, commits_ind, ta_h_b4_ind, ta_h_during_ind, hrs_ind, assgt1_r_ind, assgt2_r_ind]
+  # feature_inds = [commits_ind, ta_h_b4_ind, ta_h_during_ind, hrs_ind, assgt1_r_ind, assgt2_r_ind]
   Y = np.array(np.ones(len(info)).tolist() + np.zeros(len(non_info)).tolist())
 
   tot_studs = len(info) + len(non_info)
@@ -137,7 +138,11 @@ def cvmodel(output_dir, year_q=None):
   legend_items = []
   legend_str = []
 
+  cols = []
+  col_headers = []
+  col_headers2 = []
   for i in range(num_groups):
+    bound_st, bound_end = day_bounds[i]
     print i, map(posix_to_datetime, [bound_st, bound_end])
     info, non_info = info_list[i]
     per_year_stats(year_q_list, info, non_info)
@@ -167,12 +172,16 @@ def cvmodel(output_dir, year_q=None):
       print "lr's mean sq err", err, "score ", var, "train err", err_train
       print
 
+    col_headers.append(','.join(map(str, (bound_st, bound_end, get_t_minus(bound_st, max(year_q_list)), get_t_minus(bound_end, max(year_q_list))))))
+    col_headers2 += ['recall', 'precision', 'thresholds']
     precision, recall, thresholds = precision_recall_curve(all_tests, all_preds)#y_test, y_prob)
+    cols.append(recall)
+    cols.append(precision)
+    cols.append(thresholds)
     label = 'time %s kfold ' % (i)
     leg = ax.plot(recall, precision, marker=shapes[i], color=colors[i], label=label,alpha=0.7)
     legend_items.append(leg)
     legend_str.append(label)
-    print "precision and recall", np.array(zip(precision.tolist(), recall.tolist(), thresholds.tolist()))
 
     cv_scores = cross_val_score(linear_model.LinearRegression(), X_groups[i], Y)
     print "cross val scores", cv_scores
@@ -188,3 +197,19 @@ def cvmodel(output_dir, year_q=None):
   print "Saving fig dest", fig_dest
   fig.savefig(fig_dest)
   plt.close(fig)
+
+  with open(os.path.join(output_dir, '%s_precisionrecall.csv' % '_'.join(year_q_list)), 'w') as f:
+    f.write('%s\n' % ','.join(col_headers))
+    f.write('%s\n' % ','.join(col_headers2))
+    rows = []
+    for i in range(max(map(len, cols))):
+      item = []
+      for j in range(len(cols)):
+        if i < len(cols[j]):
+          item.append(cols[j][i])
+        else:
+          item.append('')
+      rows.append(','.join(map(str, item)))
+
+    f.write('\n'.join(rows))
+    print "Saving csv file", f.name

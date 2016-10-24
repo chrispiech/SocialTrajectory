@@ -72,6 +72,8 @@ def per_year_stats(year_q_list, info, non_info):
     print "max commits", np.amax(all_info_np[:,commits_ind])
     print "average commits", np.average(all_info_np[:,commits_ind])
     print "stdev commits", np.std(all_info_np[:,commits_ind])
+    print "num in office hours", sum(map(lambda iu: int(iu[ta_visits_ind] != 0), info_filt)), \
+        sum(map(lambda iu: int(iu[ta_visits_ind] != 0), non_info_filt))
 
 def component_stats(output_dir, year_q=None):
   global titles
@@ -107,6 +109,9 @@ def component_stats(output_dir, year_q=None):
   hrs_thresh = separate_kmeans_plot(output_dir, year_q_list,
       np.concatenate((info_np, non_info_np)), hrs_ind, f_r_ind, titles,
       plotstr='all')
+  separate_kmeans_plot(output_dir, year_q_list,
+      np.concatenate((info_np, non_info_np)), start_posix_ind, hrs_ind, titles,
+      plotstr='all', use_y=True)
   commits_thresh = separate_kmeans_plot(output_dir, year_q_list,
       np.concatenate((info_np, non_info_np)), commits_ind, f_r_ind, titles,
       plotstr='all')
@@ -349,9 +354,10 @@ def draw_bars(output_dir, year_q_list, info_np_list, non_info_np, typestr=None, 
       nz_info_np = info_np[np.nonzero(info_np[:,ta_visits_ind])[0],:]
       nz_info_np_list.append(nz_info_np)
     nz_non_info_np = non_info_np[np.nonzero(non_info_np[:,ta_visits_ind])[0],:]
+    print "number of nonzero TAs:", map(lambda i: '%s/%s' % (nz_info_np_list[i].shape[0], info_np_list[i].shape[0]), range(len(info_np_list))), '%s/%s' % (nz_non_info_np.shape[0], non_info_np.shape[0])
 
-    info_np_list = nz_info_np_list
-    non_info_np = nz_non_info_np
+    # info_np_list = nz_info_np_list
+    # non_info_np = nz_non_info_np
 
   print "num people in each set", map(lambda info_np: info_np.shape[0], info_np_list), \
       "baseline", non_info_np.shape[0]
@@ -374,7 +380,7 @@ def draw_bars(output_dir, year_q_list, info_np_list, non_info_np, typestr=None, 
     print "error: stat type not recognized for bar"
     return
 
-  compare_other = bool(typestr and 'sim' in typestr) and stat_type == STAT_GR # or len(info_np_list) == 2
+  compare_other = (bool(typestr and 'sim' in typestr) and stat_type == STAT_GR)  or len(info_np_list) == 2
   if compare_other:
     print "comparing to each other, not to baseline"
   for bar_index in bar_indices:
@@ -599,6 +605,8 @@ def draw_timerange(output_dir, year_q_list, info, non_info, sim_thresh=None, tim
   global day_length
   fig, axs = plt.subplots(2,2)
   starts = []
+  unames = []
+  hrs = []
   for info_uname in info:
     uname = str(info_uname[uname_ind])
     uname_year, uname_q = uname[:4], uname[4:6]
@@ -621,6 +629,8 @@ def draw_timerange(output_dir, year_q_list, info, non_info, sim_thresh=None, tim
     # scale_min_posix = scale_days(min_posix, old_year_q, new_year_q=max(year_q_list))
     # scale_max_posix = scale_days(max_posix, old_year_q, new_year_q=max(year_q_list))
     starts.append(scale_min_posix)
+    unames.append(uname)
+    hrs.append(info_uname[hrs_ind])
     
     #print uname, sim_min_posix, sim_max_posix, frac_sims
     # if frac_sims > 1.0:
@@ -732,14 +742,35 @@ def draw_timerange(output_dir, year_q_list, info, non_info, sim_thresh=None, tim
   with open(os.path.join(output_dir, '%s.csv' % fig_dest_prefix), 'w') as f:
     cols = []
     cols.append(posix_range[:-1].tolist())
-    cols.append(norm_start_hist.tolist())
-    cols.append(norm_non_start_hist.tolist())
     rows = []
-    for i in range(len(cols[0])):
-      row_str = ','.join(map(lambda j: str(cols[j][i]), range(len(cols))))
-      rows.append(row_str)
+    # binned things
+    uname_bins = np.digitize(starts, posix_range)
+    hrs_np = np.array(hrs)
+    bin_means = [hrs_np[uname_bins == i].mean() for i in range(1,len(posix_range))]
+    bin_errs = [np.std(hrs_np[uname_bins == i])/np.sqrt(hrs_np[uname_bins==i].shape[0]) for i in range(1,len(posix_range))]
+    bin_counts = [hrs_np[uname_bins==i].shape[0] for i in range(1,len(posix_range))]
+    bin_maxs = [np.amax(hrs_np[uname_bins == i]) for i in range(1,len(posix_range))]
+    bin_mins = [np.amin(hrs_np[uname_bins == i]) for i in range(1,len(posix_range))]
+    for i in range(len(posix_range)-1):
+      rows.append(','.join(map(str,
+        (posix_range[i], get_t_minus(posix_range[i], max(year_q_list)),
+         bin_means[i], bin_errs[i], bin_counts[i],
+         bin_mins[i], bin_maxs[i]))))
+
+
+    # normal one
+    # cols.append(norm_start_hist.tolist())
+    # cols.append(norm_non_start_hist.tolist())
+    # rows = []
+    # for i in range(len(cols[0])):
+    #   row_str = ','.join(map(lambda j: str(cols[j][i]), range(len(cols))))
+    #   rows.append(row_str)
     f.write('\n'.join(rows))
     print "Saving csv", f.name
+  start_hist, _ = np.histogram(starts, bins=posix_range)
+  norm_start_hist = start_hist/float(len(info))#+len(non_info))
+  non_start_hist, _ = np.histogram(non_starts, bins=posix_range)
+  norm_non_start_hist = non_start_hist/float(len(non_info))#+len(info))
 
 def make_histograms(info, ignore_cols=[0,]):
   global titles
@@ -1285,6 +1316,7 @@ def load_info_noninfo(output_dir, year_q_list,work_limit=0):
   #   num_days, num_hrs
   # ** min_posix, max_posix NOT affected!!!!
 
+  all_ta_np, during_ta_np, b4_ta_np = [], [], []
   for year_q in year_q_list:
     #process_baseline(output_dir, year_q)
     top_sims.update(load_top_sims_from_log(output_dir, year_q, add_str='both'))
@@ -1297,9 +1329,9 @@ def load_info_noninfo(output_dir, year_q_list,work_limit=0):
     comps.update(comps_yq)
     edges.update(edges_yq)
 
-  _, _, _, during_ta_uname_stats_np = get_ta_stats(output_dir, year_q=year_q, ta_bounds=ASSGT_ONLY_TA_TIME, work_limit=work_limit)
-  _, _, _, b4_ta_uname_stats_np = get_ta_stats(output_dir, year_q=year_q, ta_bounds=B4_ASSGT_TIME)
-  _, _, _, all_ta_uname_stats_np = get_ta_stats(output_dir, year_q=year_q, ta_bounds=ALL_TA_TIME)
+  _, _, _, during_ta_np = get_ta_stats(output_dir, ta_bounds=ASSGT_ONLY_TA_TIME, work_limit=work_limit)
+  _, _, _, b4_ta_np = get_ta_stats(output_dir, ta_bounds=B4_ASSGT_TIME)
+  _, _, _, all_ta_np = get_ta_stats(output_dir, ta_bounds=ALL_TA_TIME)
   cross_sims, cross_names = load_top_sims_by_uname(top_sims)
   grps = get_grps(comps, edges)
   info = []
@@ -1427,19 +1459,19 @@ def load_info_noninfo(output_dir, year_q_list,work_limit=0):
     ta_num_v_b4, ta_num_h_b4 = 0.0, 0.0
     ta_v_ind_tmp, ta_posix_ind_tmp = 0, 1
     ta_uname_ind_tmp = 5 # index of student uname in the ta array
-    all_ta_index = np.nonzero(int(uname) == all_ta_uname_stats_np[:,ta_uname_ind_tmp])[0]
+    all_ta_index = np.nonzero(int(uname) == all_ta_np[:,ta_uname_ind_tmp])[0]
     if len(all_ta_index) > 0:
-      uname_lair_stat = all_ta_uname_stats_np[all_ta_index[0],:]
+      uname_lair_stat = all_ta_np[all_ta_index[0],:]
       ta_num_visits = uname_lair_stat[ta_v_ind_tmp]
       ta_num_hrs = uname_lair_stat[ta_posix_ind_tmp]/float(day_length/24)
-    during_ta_index = np.nonzero(int(uname) == during_ta_uname_stats_np[:,ta_uname_ind_tmp])[0]
+    during_ta_index = np.nonzero(int(uname) == during_ta_np[:,ta_uname_ind_tmp])[0]
     if len(during_ta_index) > 0:
-      uname_lair_stat = during_ta_uname_stats_np[during_ta_index[0],:]
+      uname_lair_stat = during_ta_np[during_ta_index[0],:]
       ta_num_v_during = uname_lair_stat[ta_v_ind_tmp]
       ta_num_h_during = uname_lair_stat[ta_posix_ind_tmp]/float(day_length/24)
-    b4_ta_index = np.nonzero(int(uname) == b4_ta_uname_stats_np[:,ta_uname_ind_tmp])[0]
+    b4_ta_index = np.nonzero(int(uname) == b4_ta_np[:,ta_uname_ind_tmp])[0]
     if len(b4_ta_index) > 0:
-      uname_lair_stat = b4_ta_uname_stats_np[b4_ta_index[0],:]
+      uname_lair_stat = b4_ta_np[b4_ta_index[0],:]
       ta_num_v_b4 = uname_lair_stat[ta_v_ind_tmp]
       ta_num_h_b4 = uname_lair_stat[ta_posix_ind_tmp]/float(day_length/24)
     info_uname += [ta_num_visits, ta_num_hrs]

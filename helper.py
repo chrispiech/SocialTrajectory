@@ -708,10 +708,13 @@ def separate_kmeans_plot(output_dir, year_q_list,
   colors = plt.cm.Spectral(np.linspace(0, 1, len(unique_labels)))
   fig = plt.figure()
   ax = plt.gca()
+  all_x = []
+  all_y = []
   for k_val, col in zip(unique_labels, colors):
     class_member_mask = (labels == k_val)
     xy = info_np[class_member_mask]
-
+    all_x += xy[:,x_ind].tolist()
+    all_y += xy[:,y_ind].tolist()
     ax.plot(xy[:,x_ind], xy[:,y_ind], 'o', markerfacecolor=col,
                     markeredgecolor='k', markersize=6)
   posix_range = get_day_range(max(year_q_list),plus_minus=[0,2], incr=day_length) # daily
@@ -742,6 +745,13 @@ def separate_kmeans_plot(output_dir, year_q_list,
   fig_dest = os.path.join(output_dir, '%s.png' % fig_prefix)
   print "Saving kmeans cluster figure to", fig_dest
   fig.savefig(fig_dest)
+
+  if fig_prefix == '2012_1_2013_1_2014_1_clustersep_st_hrs_y_all':
+    with open(os.path.join(output_dir, '%s.csv' % fig_prefix), 'w') as f:
+      f.write('%s\n' % (','.join(map(str, posix_range))))
+      f.write('%s\n' % (','.join(map(lambda x: get_t_minus(x, max(year_q_list)), posix_range))))
+      f.write('\n'.join(map(lambda (x,y): '%s,%s\n' % (x,y), zip(all_x, all_y))))
+      print "Saving kmeans csv file", f.name
   return thresh_sep
 
 def load_meds(output_dir):
