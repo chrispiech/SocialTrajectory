@@ -135,7 +135,7 @@ def component_stats(output_dir, year_q=None):
               non_info_np,
               typestr='timesim', stat_type=stat_type)
     draw_bars(output_dir, year_q_list,
-                [np.array(filter(filter_by_time(True,  time_thresh, False),  info)),
+                [np.array(filter(filter_by_time(True,  time_thresh, False), info)),
                  np.array(filter(filter_by_time(False, time_thresh, False), info))],
               non_info_np,
               typestr='timereg', stat_type=stat_type)
@@ -144,6 +144,23 @@ def component_stats(output_dir, year_q=None):
               [np.array(filter(filter_by_time(True,  time_thresh, False), all_info))],
               np.array(filter(filter_by_time(False, time_thresh, False), all_info)),
               typestr='timeregall2', stat_type=stat_type)
+    draw_bars(output_dir, year_q_list,
+                [np.array(filter(filter_by_work(True,  hrs_thresh), info)),
+                 np.array(filter(filter_by_work(False, hrs_thresh), info))],
+              non_info_np,
+              typestr='worksim', stat_type=stat_type)
+    draw_bars(output_dir, year_q_list,
+              [np.array(filter(filter_by_work(False,  hrs_thresh), all_info))],
+              np.array(filter(filter_by_work(True, hrs_thresh), all_info)),
+              typestr='workregall2', stat_type=stat_type)
+    draw_bars(output_dir, year_q_list,
+              [np.array(filter(filter_by_gr(True,  mt_r_ind), all_info))],
+              np.array(filter(filter_by_gr(False, mt_r_ind), all_info)),
+              typestr='mtregall2', stat_type=stat_type)
+    draw_bars(output_dir, year_q_list,
+              [np.array(filter(filter_by_gr(True, f_r_ind), all_info))],
+              np.array(filter(filter_by_gr(False, f_r_ind), all_info)),
+              typestr='fregall2', stat_type=stat_type)
     draw_bars(output_dir, year_q_list,
                 [np.array(filter(filter_by_time(True,  time_thresh, False),  info)),
                  np.array(filter(filter_by_time(False, time_thresh, False), info)),
@@ -252,6 +269,18 @@ def filter_by_time(start_type, late_thresh, sim_start):
     else: # regular start, not sim
       late_start = bool(info_uname[start_posix_ind] >= late_thresh)
     return late_start == start_type
+  return filt
+
+def filter_by_work(work_type, hrs_thresh):
+  def filt(info_uname):
+    work_hard = bool(info_uname[hrs_ind] >= hrs_thresh)
+    return work_type == work_hard
+  return filt
+
+def filter_by_gr(gr_type, gr_ind, gr_thresh=0.25):
+  def filt(info_uname):
+    low_score = bool(info_uname[gr_ind] <= gr_thresh)
+    return low_score == gr_type
   return filt
 
 """
@@ -679,6 +708,18 @@ def draw_timerange(output_dir, year_q_list, info, non_info, sim_thresh=None, tim
   fig.savefig(fig_dest)
   plt.close(fig)
 
+  with open(os.path.join('%s.csv'), 'w') as f:
+    cols = []
+    cols.append(posix_range[:-1])
+    cols.append(norm_start_hist.tolist())
+    cols.append(norm_non_start_hist.tolist())
+    rows = []
+    for i in range(len(cols[0])):
+      row_str = ','.join(map(lambda j: str(cols[j][i]), range(len(cols))))
+      rows.append(row_str)
+    f.write('\n'.join(row_str))
+    print "Saving csv", f.name
+
 def make_histograms(info, ignore_cols=[0,]):
   global titles
   new_info = []
@@ -812,25 +853,7 @@ def filter_process(output_dir, year_q):
         else:
           not_pass_list.append((max_token, max_p_other))
           continue
-        # if check_thresh(*zip(cross_np[max_p_other_ind,2:].tolist())):
-        #   print uname, uname_other, check_thresh(*zip(cross_np[max_p_other_ind,2:].tolist())), cross_np[max_p_other_ind,:].tolist()
-        #   pass_result.add(uname)
 
-        # # if not check_thresh(max_token, max_p_self, max_p_other,norm_commit=max_commit,meds=meds):
-        # #   not_pass_list.append((max_token, max_p_other))
-        # #   #continue
-        # if np.nonzero(map(lambda tup: check_thresh(tup[token_ind], tup[p_self_ind], tup[p_other_ind],norm_commit=tup[commit_ind],meds=meds),cross_np.tolist()))[0].shape[0]:
-        #   # has passed, since there is some sim that passes
-        #   pass
-        # else:
-        #   not_pass_list.append((max_token, max_p_other))
-        #   continue #print uname, "no pass"
-        # pass_list.append((max_token, max_p_other))
-        #if max_p_other < 30: continue
-        # print "%s->%s (%d)\tmax_token: %d (p_self+other: %s), max_p_other: %.2f (p_self+token: %s)" % \
-        #     (uname, uname_other, cross_np.shape[0],
-        #         max_token, cross_np[max_token_ind,[3,4]].tolist(),
-        #         max_p_other, cross_np[max_p_other_ind,[3,2]].tolist())
         if (uname, uname_other) not in uname_edges:
           uname_edges[(uname, uname_other)] = []
           for commit_hash, moss_line in zip(cross_names[uname][uname_other], cross_np.tolist()):

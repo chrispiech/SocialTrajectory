@@ -402,6 +402,9 @@ def graph_all_similarities(output_dir, year_q_list, top_sims, posix_lookup,
   if sim == 'token': sim_ind = 1
   elif sim == 'percent': sim_ind = 2
   elif sim == 'percent_other': sim_ind = 3
+  if time_type == 'posix': time_ind = 0
+  elif time_type == 'commit': time_ind = 5
+
   print "Parsing all top sims..."
   max_commits = 0
   def check_online(info_uname,other=None):
@@ -443,7 +446,9 @@ def graph_all_similarities(output_dir, year_q_list, top_sims, posix_lookup,
       if uname not in gr: continue
       grade = gr[uname][int(rank)][int(not use_mt)]
     temp_list = [(int(scaled_posix_times[i]),
-                 top_sims[uname][posix_times[i]][sim_ind],
+                 top_sims[uname][posix_times[i]][1], # token
+                 top_sims[uname][posix_times[i]][2], # percent
+                 top_sims[uname][posix_times[i]][3], # percent other
                  check_bool(top_sims[uname][posix_times[i]],commit_inds[i]),
                  commit_inds[i],
                  grade) \
@@ -462,8 +467,8 @@ def graph_all_similarities(output_dir, year_q_list, top_sims, posix_lookup,
               grade) \
                   for i in range(len(posix_times))]
     temp2_np = np.array(temp2)
-    max_sim_ind = np.argmax(temp2_np, axis=0).tolist()[1]
-    t, ps, po = temp2_np[max_sim_ind,1:4].tolist()
+    max_po_ind = np.argmax(temp2_np, axis=0).tolist()[3]
+    t, ps, po = temp2_np[max_po_ind,1:4].tolist()
     check = check_thresh(t, ps, po)
     if check:
       pass_result.append(uname)
@@ -472,34 +477,22 @@ def graph_all_similarities(output_dir, year_q_list, top_sims, posix_lookup,
     all_timeseries[uname] = (other_names, temp_np[temp_np[:,0].argsort()])
   all_times_sims_np = np.array(all_times_sims)
   all_posix_times_np = all_times_sims_np[:,0]
-  all_sims_np = all_times_sims_np[:,1]
-  all_online_np = all_times_sims_np[:,2]
-  all_commits_np = all_times_sims_np[:,3]
-  meds_commit = med_calc(all_commits_np, all_sims_np)
-  meds_posix = med_calc(all_posix_times_np, all_sims_np)
-  print "MEDIAN AVERAGEEEEEE", np.average(meds_commit[:,1])
-  if time_type is 'posix':
-    med_times, med_sims = meds_posix[:,0], meds_posix[:,1]
-  elif time_type is 'commit':
-    med_times, med_sims = meds_commit[:,0], meds_commit[:,1]
+  all_tokens_np = all_times_sims_np[:,1]
+  all_ps_np = all_times_sims_np[:,2]
+  all_po_np = all_times_sims_np[:,3]
+  all_online_np = all_times_sims_np[:,4]
+  all_commits_np = all_times_sims_np[:,5]
+  
+  all_times_np = all_times_sims_np[:,time_ind]
+  all_sims_np = all_times_sims_np[:,sim_ind]
+  meds = med_calc(all_times_np, all_sims_np)
+  med_times, med_sims = meds[:,0], meds[:,1]
   med_lookup = {}
   for i in range(len(med_times)):
     med_lookup[med_times[i]] = med_sims[i]
   print "pass result %s" % len(pass_result), pass_result
 
-
   titles = ['posix', sim, 'online', 'commit']
-  # separate_kmeans_plot(output_dir, year_q_list,
-  #     all_times_sims_np, 0, 1, titles,
-  #     k=2, use_y=True)
-  # if normalize_flag:
-  #   separate_kmeans_plot(output_dir, year_q_list,
-  #       all_times_sims_np, 4, 1, titles,
-  #       k=2, use_y=True, plotstr='norm')
-  # else:
-  #   separate_kmeans_plot(output_dir, year_q_list,
-  #       all_times_sims_np, 4, 1, titles,
-  #       k=2, use_y=True)
 
   # cutting off the graph a bit
   time_002, time_100 = np.percentile(all_posix_times_np, [0.8,100])
@@ -528,6 +521,9 @@ def graph_all_similarities(output_dir, year_q_list, top_sims, posix_lookup,
   highlight_list = []
   offline_list = []
   highlight_unames = []
+  if time_type is 'posix': info_time_ind = 3
+  elif time_type is 'commit': info_time_ind = 4
+  info_sim_ind = sim_ind - 1
   for uname in all_timeseries:
     if uname_ind % 50 == 1: print uname_ind
     uname_ind += 1
@@ -537,20 +533,20 @@ def graph_all_similarities(output_dir, year_q_list, top_sims, posix_lookup,
     keep_inds = posix_times >= all_start_time # use start_time
 
     posix_times_sort = posix_times[keep_inds]
-    sims_sort = time_array[keep_inds,1]
-    online_bools_sort = time_array[keep_inds,2].astype(bool)
-    commit_inds_sort = time_array[keep_inds,3]
+    tokens_sort = time_array[keep_inds,1]
+    ps_sort = time_array[keep_inds,2]
+    po_sort = time_array[keep_inds,3]
+    sims_sort = time_array[keep_inds,sim_ind]
+    online_bools_sort = time_array[keep_inds,4].astype(bool)
+    commit_inds_sort = time_array[keep_inds,5]
     #np.arange(len(posix_times_sort)).astype(float)
-    grades_sort = time_array[keep_inds,4]
+    grades_sort = time_array[keep_inds,6]
     if use_grades: # filter by grade
       #if not np.any(np.logical_and(grades_sort > 0.1, grades_sort < 0.8)):
       # if not np.any(np.logical_or(grades_sort < 0.2, grades_sort > 0.7)):
       #   continue
       pass
 
-    if len(sims_sort) == 0:
-      print "%s has no moss after %s" % (uname, x_labels[0])
-      continue
     
     # check if name should be different color
     highlight_flag = False
@@ -559,10 +555,6 @@ def graph_all_similarities(output_dir, year_q_list, top_sims, posix_lookup,
       if uname[6:] in only_names:
         highlight_flag = True
       #else: uname_ind += 1; continue
-
-    # add label
-    max_ind = np.argmax(sims_sort ** 2 + np.array(range(len(sims_sort))) ** 2)
-    max_sim, max_posix = sims_sort[max_ind], posix_times_sort[max_ind]
 
     # online/offline
     def default_highlight():
@@ -574,8 +566,12 @@ def graph_all_similarities(output_dir, year_q_list, top_sims, posix_lookup,
     if grp_only:
       highlight_fun = default_highlight()
 
-    all_info = [(sims_sort[i], posix_times_sort[i],
-                 commit_inds_sort[i],
+    if len(sims_sort) == 0:
+      print "%s has no moss after %s" % (uname, x_labels[0])
+      continue
+
+    all_info = [(tokens_sort[i], ps_sort[i], po_sort[i],
+      posix_times_sort[i], commit_inds_sort[i],
                  posix_to_datetime(posix_times_sort[i]),
                  grades_sort[i],
                  online_bools_sort[i]) \
@@ -587,14 +583,14 @@ def graph_all_similarities(output_dir, year_q_list, top_sims, posix_lookup,
     on_c, off_c = online_c, offline_c # colors to graph circles
     if scatter_highlight: # instead of online_sims, in case the online part happened before time_002.
       highlight_unames.append(uname)
-      sims_online, posix_online, commits_online, _, grades_online,_ = zip(*scatter_highlight)
-      # print uname
-      # print zip(sims_online, posix_online)
+      grades_highlight = map(lambda x: x[-2], scatter_highlight)
       if use_grades: on_c = m.to_rgba(grades_online)
       #print uname, grades_online[0]
+      highlight_list.append((scatter_highlight, on_c, uname))
     if scatter_offline:
-      sims_offline, posix_offline, commits_offline, _, grades_offline,_ = zip(*scatter_offline)
+      grades_offline = map(lambda x: x[-2], scatter_offline)
       if use_grades: off_c = m.to_rgba(grades_offline)
+      offline_list.append((scatter_offline, off_c, uname))
 
     # plot per username if needed
     plt_ind = uname_ind/100
@@ -608,42 +604,36 @@ def graph_all_similarities(output_dir, year_q_list, top_sims, posix_lookup,
     first_tup = (times_sort[0], sims_sort[0])
     last_tup = (times_sort[-1], sims_sort[-1])
     c_plot = off_c
-    ax_std.plot(times_sort, sims_sort, '-', lw=1, c=off_c, alpha=0.2)
-    ax_std.scatter(first_tup[0], first_tup[1], marker='^', s=30,lw=0,c=off_c,alpha=0.8)
-    ax_std.scatter(last_tup[0], last_tup[1], marker='^', s=30,lw=0,c=off_c,alpha=0.8)
-
-    if time_type is 'posix':
-      if scatter_highlight: # outline the online
-        highlight_list.append((posix_online, sims_online, on_c, uname))
-      if scatter_offline:
-        offline_list.append((posix_offline, sims_offline, off_c, uname))
-      points_std.append([posix_times_sort, sims_sort])
-    elif time_type is 'commit':
-      if scatter_highlight: # outline the online
-        highlight_list.append((commits_online, sims_online, on_c, uname))
-      if scatter_offline:
-        offline_list.append((commits_offline, sims_offline, off_c, uname))
-      points_std.append([range(len(sims_sort)), sims_sort])
+    # ax_std.plot(times_sort, sims_sort, '-', lw=1, c=off_c, alpha=0.2)
+    # ax_std.scatter(first_tup[0], first_tup[1], marker='^', s=30,lw=0,c=off_c,alpha=0.8)
+    # ax_std.scatter(last_tup[0], last_tup[1], marker='^', s=30,lw=0,c=off_c,alpha=0.8)
 
   print "highlight uname", len(highlight_unames), "pass result", len(pass_result)
 
   # plot all offline first, then online
-  for time_x, sim_y, c,_ in offline_list:
+  for scatter_offline, c, uname in offline_list:
+    time_x = map(lambda x: x[info_time_ind], scatter_offline)
+    sim_y = map(lambda x: x[info_sim_ind], scatter_offline)
     ax_std.scatter(time_x, sim_y, marker='.', color=c, lw=0, alpha=0.3)
-  for time_x, sim_y, c,_ in highlight_list:
+  for scatter_highlight, c, uname in highlight_list:
+    time_x = map(lambda x: x[info_time_ind], scatter_highlight)
+    sim_y = map(lambda x: x[info_sim_ind], scatter_highlight)
     ax_std.scatter(time_x, sim_y, marker='o', color=c, lw=0, s=30, alpha=0.3)
-    #ax_std.scatter(time_x, sim_y, marker='.', color='b', lw=0, alpha=0.3)
 
   # write csv files with information
   with open(os.path.join(output_dir,
       '%s_moss_%s_%s_%s.csv' % \
           ('_'.join(year_q_list), sim, time_type,normalize_flag)), 'w') as f:
     f.write('%s,%s,marked\n' % (time_type,sim))
-    for time_x, sim_y, _, uname in offline_list:
+    for scatter_offline, c, uname in offline_list:
+      time_x = map(lambda x: x[info_time_ind], scatter_offline)
+      sim_y = map(lambda x: x[info_sim_ind], scatter_offline)
       diff = [0] # first difference
       diff += map(lambda i: sim_y[i+1] - sim_y[i], range(len(sim_y)-1))
       f.write('\n'.join(map(lambda (x, y, z): '%s,%s,0,%s,%s\n' % (x,y,z,uname), zip(time_x, sim_y, diff))))
-    for time_x, sim_y, _, uname in highlight_list:
+    for scatter_highlight, c, uname in highlight_list:
+      time_x = map(lambda x: x[info_time_ind], scatter_highlight)
+      sim_y = map(lambda x: x[info_sim_ind], scatter_highlight)
       diff = [0] # first difference
       diff += map(lambda i: sim_y[i+1] - sim_y[i], range(len(sim_y)-1))
       f.write('\n'.join(map(lambda (x, y, z): '%s,%s,1,%s,%s\n' % (x,y,z,uname), zip(time_x, sim_y, diff))))
@@ -769,7 +759,6 @@ def graph_all_similarities(output_dir, year_q_list, top_sims, posix_lookup,
   print highlight_unames
   return thresh_unames
     
-  #points_std.append(np.array([range(len(sims_sort)), sims_sort]))
 ############## BELOW THIS LINE IS DEPRECATED CODE #############
 
 # Messy approximate graphs that don't really matter.
