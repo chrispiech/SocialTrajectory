@@ -507,6 +507,27 @@ def draw_bars(output_dir, year_q_list, info_np_list, non_info_np, typestr=None, 
   fig.savefig(fig_dest)
   plt.close(fig)
 
+  if fig_dest_prefix == '2012_1_2013_1_2014_1_group_histogram_grade_timeregall':
+    # write a file of these things and graph nicely in excel
+    with open(os.path.join(output_dir, '%s.csv' % fig_dest_prefix), 'w') as f:
+      cols = []
+      for bar_index in [bar_indices[3], bar_indices[5]]:
+        f.write('%s\n' % titles[bar_index])
+        f.write('%s\n' % (','.join(legend_names + legend_names)))
+        for i, info_np in enumerate(info_np_list):
+          cols.append(map(str, info_np[:,bar_index].tolist()))
+        cols.append(map(str, non_info_np[:,bar_index].tolist()))
+      for i in range(max(map(len, cols))): # row
+        item = []
+        for j in range(len(cols)): # per col
+          if i < len(cols[j]):
+            item.append(cols[j][i])
+          else:
+            item.append('')
+        f.write('%s\n' % ','.join(item))
+
+      print "Writing csv to", f.name
+
 def scattergrade(output_dir, year_q_list, info, non_info, sim_thresh, time_thresh, stat_type=0):
   x_indices = []
   stat_str = ''
@@ -708,16 +729,16 @@ def draw_timerange(output_dir, year_q_list, info, non_info, sim_thresh=None, tim
   fig.savefig(fig_dest)
   plt.close(fig)
 
-  with open(os.path.join('%s.csv'), 'w') as f:
+  with open(os.path.join(output_dir, '%s.csv' % fig_dest_prefix), 'w') as f:
     cols = []
-    cols.append(posix_range[:-1])
+    cols.append(posix_range[:-1].tolist())
     cols.append(norm_start_hist.tolist())
     cols.append(norm_non_start_hist.tolist())
     rows = []
     for i in range(len(cols[0])):
       row_str = ','.join(map(lambda j: str(cols[j][i]), range(len(cols))))
       rows.append(row_str)
-    f.write('\n'.join(row_str))
+    f.write('\n'.join(rows))
     print "Saving csv", f.name
 
 def make_histograms(info, ignore_cols=[0,]):
@@ -1098,6 +1119,26 @@ def grade_over_time(output_dir, year_q_list, info_np, non_info_np, include_point
   print "Saving gradesthing to", fig_dest
   fig.savefig(fig_dest)
   plt.close(fig)
+
+  with open(os.path.join(output_dir, '%s.csv' % fig_prefix), 'w') as f:
+    cols = []
+    cols.append(posix_range[:-1].tolist())
+    for y, y_index in enumerate(y_indices):
+      f.write('%s\n' % titles[y_index])
+      info_grades_avg = map(lambda thing: np.average(thing[0][:,y_index]), grades_hist)
+      info_grades_err = map(lambda thing: np.std(thing[0][:,y_index])/np.sqrt(thing[0].shape[0]), grades_hist)
+      non_info_grades_avg = map(lambda thing: np.average(thing[1][:,y_index]), grades_hist)
+      non_info_grades_err = map(lambda thing: np.std(thing[1][:,y_index])/np.sqrt(thing[1].shape[0]), grades_hist)
+      cols.append(info_grades_avg)
+      cols.append(info_grades_err)
+      cols.append(non_info_grades_avg)
+      cols.append(non_info_grades_err)
+    rows = []
+    for i in range(len(cols[0])):
+      row_str = ','.join(map(lambda j: str(cols[j][i]), range(len(cols))))
+      rows.append(row_str)
+    f.write('\n'.join(rows))
+    print "Writing csv to", f.name
 
 def grade_over_ta_time(output_dir, year_q_list, info_np, non_info_np, include_point=None):
   pc_time_ind = start_posix_ind
