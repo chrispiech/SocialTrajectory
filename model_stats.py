@@ -10,6 +10,7 @@ from comp_stats import *
 from sklearn.model_selection import KFold, cross_val_score
 from sklearn.metrics import precision_recall_curve
 from sklearn import linear_model
+import statsmodels.api as sm
 
 # collaboration
 uname_ind, grp_ind, num_sims_ind = 0, 1, 2
@@ -60,7 +61,7 @@ def cvmodel(output_dir, year_q=None):
   # for year_q in year_q_list:
   #   filter_process(output_dir, year_q)
 
-  num_groups = 4
+  num_groups = 5
   day_range = get_day_range(max(year_q_list), plus_minus=(0,3),incr=day_length)
   divs = np.linspace(0,len(day_range)-1,num=num_groups+1).astype(int)
   divs[-1] = len(day_range) # add one day onto the end
@@ -71,8 +72,8 @@ def cvmodel(output_dir, year_q=None):
   
   all_info_np = np.array(info + non_info)
 
-  feature_inds = [avg_t_ind, avg_po_ind, commits_ind, ta_h_b4_ind, ta_h_during_ind, hrs_ind, assgt1_r_ind, assgt2_r_ind]
-  # feature_inds = [commits_ind, ta_h_b4_ind, ta_h_during_ind, hrs_ind, assgt1_r_ind, assgt2_r_ind]
+  feature_inds = [avg_t_ind, avg_po_ind, commits_ind, hrs_ind, ta_h_b4_ind, ta_h_during_ind, assgt1_r_ind, assgt2_r_ind]
+  #feature_inds = [commits_ind, ta_h_b4_ind, ta_h_during_ind, hrs_ind, assgt1_r_ind, assgt2_r_ind]
   Y = np.array(np.ones(len(info)).tolist() + np.zeros(len(non_info)).tolist())
 
   tot_studs = len(info) + len(non_info)
@@ -91,10 +92,10 @@ def cvmodel(output_dir, year_q=None):
       bound_st = day_range[0]
       bound_end = day_range[divs[i+1]]
     elif i == num_groups - 1:
-      bound_st = day_range[divs[i]-1]
+      bound_st = day_range[divs[i]]
       bound_end = day_range[-1]+1
     else:
-      bound_st = day_range[divs[i]-1]
+      bound_st = day_range[divs[i]]
       bound_end = day_range[divs[i+1]]
     day_bounds.append((bound_st, bound_end))
 
@@ -111,20 +112,28 @@ def cvmodel(output_dir, year_q=None):
     print map(lambda ind: titles[ind], feature_inds)
     per_year_stats(year_q_list, info, non_info)
 
-    nz_start = (all_info_np[:,start_posix_ind] < bound_end).tolist()
-    nz_end = (all_info_np[:,end_posix_ind]  < bound_end).tolist()
-    bools = np.array(zip(nz_start, nz_end))
+    nz_start = (all_info_np[:,start_posix_ind] < bound_end)
+    nz_end = (all_info_np[:,end_posix_ind]  < bound_end)
+    days_since_start = ((all_info_np[:,start_posix_ind]-all_startend_times['2014_1'][START_TIME])/day_length).astype(int)
+    days_since_end = ((all_info_np[:,end_posix_ind]-all_startend_times['2014_1'][START_TIME])/day_length).astype(int)
+    bools = np.array(zip(nz_start.tolist(), nz_end.tolist()))
+    start_ends = np.array(zip((nz_start*days_since_start).tolist(), (nz_end*days_since_end).tolist()))
 
     print bools.shape, all_info_np[:,feature_inds].shape
-    features_only = np.hstack([all_info_np[:,feature_inds],bools])
+    features_only = np.hstack([all_info_np[:,feature_inds],start_ends])#,bools])
     print features_only.shape
 
     X = features_only[shuffle_inds,:] # shuffle the same way every time
+    print X
+    print "commits", X[:,2], np.amax(X[:,2])
+    print "hrs?", X[:,5], np.amax(X[:,5])
+    #X = X/np.amax(X,axis=0) # normalize!
+    print "maxes should be normalized", np.amax(X,axis=0)
 
     X_groups.append(X)
 
   print "\n\n\n\n"
-  k_fold = KFold(n_splits=3)
+  k_fold = KFold(n_splits=10)
   kfold_split = []
   for i in range(num_groups):
     kfold_split.append([])
@@ -133,14 +142,16 @@ def cvmodel(output_dir, year_q=None):
 
   fig = plt.figure()
   ax = plt.gca()
-  colors = ['r', 'g', 'b', 'm']
-  shapes = ['^', 'o', 's', 'p']
+  colors = ['r', 'g', 'b', 'm', 'c']
+  shapes = ['^', 'o', 's', 'p', '.']
   legend_items = []
   legend_str = []
 
   cols = []
   col_headers = []
   col_headers2 = []
+  avg_errs = []
+  avg_odds = []
   for i in range(num_groups):
     bound_st, bound_end = day_bounds[i]
     print i, map(posix_to_datetime, [bound_st, bound_end])
@@ -151,11 +162,14 @@ def cvmodel(output_dir, year_q=None):
     all_tests = []
 
     # train model
+    errs = []
+    weights = []
+
     for j, (X_train, y_train, X_test, y_test) in enumerate(kf_split_group):
       print "time", i, "fold", j
       print "nonzero cheaters: train %s/%s, test %s/%s" % (len(np.nonzero(y_train)[0].tolist()), len(y_train.tolist()), len(np.nonzero(y_test)[0].tolist()), len(y_test.tolist()))
       #lr = linear_model.LinearRegression()
-      lr = linear_model.LogisticRegression(C=100.0)
+      lr = linear_model.LogisticRegression()#C=1e9)#00.0)
       lr.fit(X_train, y_train)
       y_pred = lr.predict(X_test) # between 0 and 1, X*h + b
       y_prob = lr.predict_proba(X_test)[:,1] # first col is "0" prob, vs "1" prob
@@ -170,7 +184,8 @@ def cvmodel(output_dir, year_q=None):
       all_preds += y_prob.tolist()
       
       print "lr's mean sq err", err, "score ", var, "train err", err_train
-      print
+      errs.append((err, err_train))
+      weights.append(lr.coef_.tolist())
 
     col_headers.append(','.join(map(str, (bound_st, bound_end, get_t_minus(bound_st, max(year_q_list)), get_t_minus(bound_end, max(year_q_list))))))
     col_headers2 += ['recall', 'precision', 'thresholds']
@@ -186,9 +201,23 @@ def cvmodel(output_dir, year_q=None):
     cv_scores = cross_val_score(linear_model.LinearRegression(), X_groups[i], Y)
     print "cross val scores", cv_scores
     print "cv mean: %s, cv stdev: %s" % (np.mean(cv_scores), np.std(cv_scores))
+
+    print map(lambda x: titles[x], feature_inds)
+
+    for j, _ in enumerate(errs):
+      print "err test: %s, err train: %s" % errs[j]
+      print "params:", weights[j][0]
+      print "odds ratio", np.exp(np.array(weights[j][0]))
+    avg_errs.append(np.average(errs,axis=0).tolist())
+    avg_odds.append(np.average(map(lambda w: np.exp(np.array(w[0])), weights),axis=0).tolist())
     print
     print
     print
+  for i in range(num_groups):
+    bound_st, bound_end = day_bounds[i]
+    print i, map(posix_to_datetime, [bound_st, bound_end])
+    print "average errs", avg_errs[i]
+    print "average odds", avg_odds[i]
 
   #ax.legend()
   ax.set_xlabel('Recall')

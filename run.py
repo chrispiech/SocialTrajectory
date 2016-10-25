@@ -100,7 +100,7 @@ def moss(moss_dir, output_dir, final_submissions_dir):
     #create_gephi(output_dir, year_q_dirname)
 
 def component(output_dir):
-  #component_stats_multi(output_dir)
+  component_stats_multi(output_dir)
   cvmodel(output_dir)
   for year_q_dirname in ['2012_1', '2013_1', '2014_1']:
     try:

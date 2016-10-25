@@ -52,6 +52,8 @@ TA_TYPE = B4_MT_TIME
 TA_TYPE = BT_MT_FINAL_TIME
 TA_TYPE = B4_ASSGT_TIME
 def per_year_stats(year_q_list, info, non_info):
+  print "average hours worked", np.average(np.array(info + non_info)[:,hrs_ind]), \
+      "std dev", np.std(np.array(info + non_info)[:,hrs_ind])
   for year_q in year_q_list:
     year, q = year_q.split('_')
     uname_yearq = '%s%02d' % (year, int(q))
@@ -109,6 +111,7 @@ def component_stats(output_dir, year_q=None):
   hrs_thresh = separate_kmeans_plot(output_dir, year_q_list,
       np.concatenate((info_np, non_info_np)), hrs_ind, f_r_ind, titles,
       plotstr='all')
+  hrs_thresh = 8.00
   separate_kmeans_plot(output_dir, year_q_list,
       np.concatenate((info_np, non_info_np)), start_posix_ind, hrs_ind, titles,
       plotstr='all', use_y=True)
@@ -125,8 +128,10 @@ def component_stats(output_dir, year_q=None):
   grade_over_time(output_dir, year_q_list, info_np, non_info_np, include_point=time_thresh)
   grade_over_ta_time(output_dir, year_q_list, info_np, non_info_np, include_point=time_thresh)
   scattergrade(output_dir, year_q_list, info, non_info, sim_thresh, time_thresh)
+  scattergrade_work(output_dir, year_q_list, info, non_info, hrs_thresh)
 
   draw_timerange(output_dir, year_q_list, info, non_info, sim_thresh, timesim_thresh)
+  panic_premed(output_dir, year_q_list, info, non_info, time_thresh)
   for stat_type in [STAT_GR, STAT_TA, STAT_TIME]:
     draw_bars(output_dir, year_q_list, [info_np], non_info_np, stat_type=stat_type)
     draw_bars(output_dir, year_q_list,
@@ -276,12 +281,18 @@ def filter_by_time(start_type, late_thresh, sim_start):
     return late_start == start_type
   return filt
 
+"""
+True: work hard
+"""
 def filter_by_work(work_type, hrs_thresh):
   def filt(info_uname):
     work_hard = bool(info_uname[hrs_ind] >= hrs_thresh)
     return work_type == work_hard
   return filt
 
+"""
+True: low score
+"""
 def filter_by_gr(gr_type, gr_ind, gr_thresh=0.25):
   def filt(info_uname):
     low_score = bool(info_uname[gr_ind] <= gr_thresh)
@@ -534,12 +545,123 @@ def draw_bars(output_dir, year_q_list, info_np_list, non_info_np, typestr=None, 
 
       print "Writing csv to", f.name
 
+
+def panic_premed(output_dir, year_q_list, info, non_info, time_thresh):
+  
+  fig_dest_prefix = '%s_panic_premed' % ('_'.join(year_q_list))
+  early_non = filter(filter_by_time(False, time_thresh, False), non_info)
+  late_non = filter(filter_by_time(True, time_thresh, False), non_info)
+  late_panic = filter(filter_by_time(True, time_thresh, False), info)
+  early_cheat = filter(filter_by_time(False, time_thresh, False), info)
+
+  """
+  True: early cheat
+  """
+  def filter_by_b4_sim(cheat_type, sim_thresh=0.5):
+    def filt(info_uname):
+      early_cheat = bool(info_uname[b4_frac_sims_ind] <= sim_thresh)
+      return cheat_type == early_cheat
+    return filt
+
+  early_cheat_premed = filter(filter_by_b4_sim(True), early_cheat)
+  early_cheat_panic = filter(filter_by_b4_sim(False), early_cheat)
+
+  title_seps = ['early_premed', 'early_panic', 'late_panic', 'early_non', 'late_non']
+  seps = [early_cheat_premed, early_cheat_panic, late_panic, early_non, late_non]
+  counts = map(len, seps)
+  
+  mt_avgs = map(lambda x: np.average(np.array(x)[:,mt_r_ind]), seps)
+  mt_stds = map(lambda x: np.std(np.array(x)[:,mt_r_ind]), seps)
+  f_avgs = map(lambda x: np.average(np.array(x)[:,f_r_ind]), seps)
+  f_stds = map(lambda x: np.std(np.array(x)[:,f_r_ind]), seps)
+
+  with open(os.path.join(output_dir, '%s.csv' % fig_dest_prefix), 'w') as f:
+    f.write('%s\n' % ','.join(title_seps))
+    f.write('%s\n' % ','.join(map(str, counts)))
+    f.write('%s\n' % ','.join(map(str, mt_avgs)))
+    f.write('%s\n' % ','.join(map(str, mt_stds)))
+    f.write('%s\n' % ','.join(map(str, f_avgs)))
+    f.write('%s\n' % ','.join(map(str, f_stds)))
+    print "Writing csv to", f.name
+
+"""
+People who perform badly who cheat, don't cheat, work hard.
+"""
+def scattergrade_work(output_dir, year_q_list, info, non_info, hrs_thresh, stat_type=STAT_TIME):
+  y_indices = range(-6,0)[3::2]
+  x_indices = [hrs_ind]
+  fig, axs = plt.subplots(len(y_indices), 1, figsize=(10,10))
+  legend = ['cheat', 'work hard', 'no work hard']
+  colors = ['r', 'g', 'c']
+  y_seps = []
+  feats = []
+  unames = set()
+  for y, y_index in enumerate(y_indices):
+    low_gr = filter(filter_by_gr(True, y_index), info)
+    non_low_gr = filter(filter_by_gr(True, y_index), non_info)
+    work_non_low_gr = filter(filter_by_work(True, hrs_thresh), non_low_gr)
+    nowork_non_low_gr = filter(filter_by_work(False, hrs_thresh), non_low_gr)
+    low_gr_np, work_non_low_gr_np, nowork_non_low_gr_np = \
+        np.array(low_gr), np.array(work_non_low_gr), np.array(nowork_non_low_gr)
+
+    axs[y].scatter(low_gr_np[:,hrs_ind], low_gr_np[:,y_index],
+        c=colors[0], lw=0, label=legend[0],alpha=0.5)
+    axs[y].scatter(work_non_low_gr_np[:,hrs_ind], work_non_low_gr_np[:,y_index],
+        c=colors[1], lw=0, label=legend[1], alpha=0.5)
+    axs[y].scatter(nowork_non_low_gr_np[:,hrs_ind], nowork_non_low_gr_np[:,y_index],
+        c=colors[2], lw=0, label=legend[2], alpha=0.5)
+    axs[y].set_ylabel('%s grade' % titles[y_index])
+    axs[y].set_xlabel(titles[hrs_ind])
+
+
+    # print stats
+    seps = [low_gr_np, work_non_low_gr_np, nowork_non_low_gr_np]
+    y_seps += seps
+  
+  feats = [hrs_ind, commits_ind, start_posix_ind, ta_hrs_ind, mt_r_ind, f_r_ind]
+  for feat in feats:
+    print legend
+    print titles[feat]
+    print "avg", map(lambda sep: np.average(sep[:,feat]), seps)
+    print "std", map(lambda sep: np.std(sep[:,feat]), seps)
+    if feat == start_posix_ind:
+      print "avg start", map(lambda sep: posix_to_datetime(np.average(sep[:,feat])), seps)
+      print "avg end", map(lambda sep: posix_to_datetime(np.average(sep[:,end_posix_ind])), seps)
+
+  fig.tight_layout()
+  fig_prefix = "%s_lowgradescatter" % ('_'.join(year_q_list))
+  fig_dest = os.path.join(output_dir, '%s.png' % fig_prefix)
+  print "Saving low grade plot", fig_dest
+  fig.savefig(fig_dest)
+  plt.close(fig)
+
+  with open(os.path.join(output_dir, '%s.csv' % fig_prefix), 'w') as f:
+    f.write('%s\n' % ','.join(map(lambda feat: '%s,,' % titles[feat], feats)))
+    feat_seps = []
+    for feat in feats:
+      for y_sep in y_seps:
+        if feat == start_posix_ind:
+          feat_seps.append(map(posix_to_datetime, y_sep[:,feat].tolist()))
+        else:
+          feat_seps.append(y_sep[:,feat].tolist())
+    for i in range(max(map(len, feat_seps))):
+      item = []
+      for j in range(len(feat_seps)):
+        if i < len(feat_seps[j]):
+          item.append(str(feat_seps[j][i]))
+        else:
+          item.append('')
+      f.write('%s\n' % ','.join(item))
+    print "Writing csv to", f.name
+
 def scattergrade(output_dir, year_q_list, info, non_info, sim_thresh, time_thresh, stat_type=0):
   x_indices = []
   stat_str = ''
   if stat_type == STAT_TA:
     x_indices = [ta_visits_ind, ta_hrs_ind]
     stat_str = 'ta'
+  elif stat_type == STAT_TIME:
+    x_indices = [hrs_ind]
   else:
     x_indices = [frac_sims_ind]
 
@@ -593,6 +715,8 @@ def scattergrade(output_dir, year_q_list, info, non_info, sim_thresh, time_thres
   if stat_type == STAT_TA:
     print "TA BOUNDS STR", ta_bounds_str[TA_TYPE]
     fig_prefix += "%s" % ta_bounds_str[TA_TYPE]
+  elif stat_type == STAT_TIME:
+    fig_prefix += "%s" % ('hr')
   fig_dest = os.path.join(output_dir, '%s.png' % fig_prefix)
   print "Saving scatter vs grade", fig_dest
   fig.savefig(fig_dest)
