@@ -213,7 +213,8 @@ def write_all_moss_similar(moss_dir, year_q, output_dir, use_diff=0):
     else:
       print uname, commit
       # create directory per student.
-      similarities = write_moss_similar(moss_dir, commit, output_dir=output_yq_dir)
+      similarities = get_moss_similar(moss_dir, commit)
+      # save_moss_similar(similarities, commit, output_dir, add_str=''):
       # load top similarity for each.
       top_sim = moss_top_similar(similarities, commit)
       #uname = '_'.join(commit.split('_')[:2]) # ignores additional integer, e.g. uid_1
@@ -225,9 +226,35 @@ def write_all_moss_similar(moss_dir, year_q, output_dir, use_diff=0):
         top_sims[uname][commit] = top_sim
   
   top_sim_path = os.path.join(output_dir, "%s_top_sim%s.csv" % (year_q, add_str)) 
-  write_top_sims_to_file(top_sims, top_sim_path, use_diff=use_diff)
+  write_top_sims_to_file(top_sims, top_sim_path)
 
-def write_top_sims_to_file(top_sims, top_sim_path, use_diff=0):
+header_top_sims = ["uname", "other",
+                   "token", "pself", "pother",
+                   "step", "time", "hash",
+                   "fname", "fpath",
+                   "type_other",  "fpath_other", "report"]
+def write_top_sims_to_file(top_sims, top_sim_path):
+  with open(top_sim_path, 'w') as f:
+    f.write('%s\n' % ','.join(header_top_sims))
+    for uname in sorted(top_sims.keys()):
+      lines = format_top_sims(uname, top_sims[uname])
+      f.write('\n'.join(lines) + '\n')
+
+def format_top_sims(uname, commit_dict):
+  num_commits = len(commit_dict.keys())
+  per_commit = []
+  for i, commit in enumerate(sorted(commit_dict.keys())):
+    _, posix_time, commit_hash = commit.split('_')
+    self_f, fpath_other, report_html, token, pself, pother = commit_dict[commit]
+    fname = self_f.split('_')[-1] # e.g., "Breakout"
+    tup_other = fpath_other.split('/')
+    type_other, other_uname = tup_other[0], tup_other[-1]
+    per_commit.append(map(str,
+      (uname, other_uname, token, pself, pother, i, posix_time,
+        commit_hash, fname, commit, type_other, fpath_other, report_html)))
+  return [','.join(x) for x in per_commit]
+
+def write_top_sims_to_file_old(top_sims, top_sim_path, use_diff=0):
   with open(top_sim_path, 'w') as f:
     unames = top_sims.keys()
     unames.sort()
@@ -269,7 +296,7 @@ report_html: usually reportX.html
 percent_self: the number of tokens over all self's tokens
 percent_other: the number of tokens over all other's tokens
 """
-def write_moss_similar(moss_dir, commit, output_dir=None, add_str=''):
+def get_moss_similar(moss_dir, commit):
   commit_dir = os.path.join(moss_dir, commit)
   #uname = '_'.join(commit.split('_')[:2]) # ignores additional integer, e.g. uid_1
   uname = commit.split('_')[0] # now only user id anyway
@@ -303,17 +330,19 @@ def write_moss_similar(moss_dir, commit, output_dir=None, add_str=''):
     tokens_matched = int(sim_elt.find_class("match")[0].text)
     if uname not in other_f_path:
       # don't save similarities to your own final submission
-      similarities.append((other_f_path, report_html,
+      similarities.append((self_f, other_f_path, report_html,
                 tokens_matched, percent_self, percent_other))
     # similarities.append((self_f, other_f_path, report_html,
     #           tokens_matched, percent_self, percent_other))
+  return similarities
 
-  if output_dir:
-    output_path = os.path.join(output_dir, '%s%s.csv' % (commit, add_str))
-    with open(output_path, 'w') as f:
-      for sim in similarities: # ignore rank!!
-        f.write('%s,%s,%s,%d,%.2f,%.2f\n' % sim)
-        #f.write('%s,%s,%s,%d,%.2f,%.2f\n' % sim) # for baseline
+
+def save_moss_similar(similarities, commit, output_dir, add_str=''):
+  output_path = os.path.join(output_dir, '%s%s.csv' % (commit, add_str))
+  with open(output_path, 'w') as f:
+    for sim in similarities: # ignore rank!!
+      f.write('%s,%s,%s,%s,%d,%.2f,%.2f\n' % sim)
+      #f.write('%s,%s,%s,%d,%.2f,%.2f\n' % sim) # for baseline
   return similarities
   
 def moss_top_similar(similarities, commit):

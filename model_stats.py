@@ -73,7 +73,7 @@ def cvmodel(output_dir, year_q=None):
   all_info_np = np.array(info + non_info)
 
   feature_inds = [avg_t_ind, avg_po_ind, commits_ind, hrs_ind, ta_h_b4_ind, ta_h_during_ind, assgt1_r_ind, assgt2_r_ind]
-  #feature_inds = [commits_ind, ta_h_b4_ind, ta_h_during_ind, hrs_ind, assgt1_r_ind, assgt2_r_ind]
+  feature_inds = [commits_ind, ta_h_b4_ind, ta_h_during_ind, hrs_ind, assgt1_r_ind, assgt2_r_ind]
   Y = np.array(np.ones(len(info)).tolist() + np.zeros(len(non_info)).tolist())
 
   tot_studs = len(info) + len(non_info)

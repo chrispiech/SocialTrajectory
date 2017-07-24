@@ -12,8 +12,11 @@ Timestamp: UNIX timestamp.
 def expand_all_commits(code_dir, target_dir):
   print code_dir
   uname_lookup_by_year_q = load_uname_lookup_by_year_q()
-  for student in os.listdir(code_dir):
-    student_dir = os.path.join(code_dir, student)
+  latest_submissions = get_latest_submissions(code_dir)
+  num_students = len(latest_submissions)
+  for i, student in enumerate(latest_submissions.keys()):
+    latest_submit = latest_submissions[student]
+    student_dir = os.path.join(code_dir, latest_submit)
     all_commits = git_log(git_dir=student_dir,
             format_str="%h %ct",
             extra_str="--date=local").split('\n')
@@ -24,12 +27,28 @@ def expand_all_commits(code_dir, target_dir):
     year_q = get_submit_time(student_dir) 
     year_target_dir = os.path.join(target_dir, year_q)
 
-    add_uname_to_lookup(student, year_q, uname_lookup_by_year_q)
-    student_id = uname_lookup_by_year_q[year_q][student]
-    print student, student_id
-    for commit in all_commits:
+    if year_q not in uname_lookup_by_year_q or \
+          latest_submit not in uname_lookup_by_year_q[year_q]:
+        add_uname_to_lookup(latest_submit, year_q, uname_lookup_by_year_q)
+    student_id = uname_lookup_by_year_q[year_q][latest_submit]
+    num_commits = len(all_commits)
+    for j, commit in enumerate(all_commits):
+      print "student {}/{} {}: commit {}/{}".format(
+          i, num_students, student, j, num_commits)
       git_checkout(commit, orig_dir=student_dir, target_dir=year_target_dir, prefix=student_id)
   export_uname_lookup_by_year_q(uname_lookup_by_year_q)
+
+def get_latest_submissions(code_dir):
+  all_submissions = {}
+  for submit in os.listdir(code_dir):
+    student = submit.split('_')[0]
+    if student not in all_submissions:
+      all_submissions[student] = []
+    all_submissions[student].append(submit)
+  latest_submissions = dict([(student,
+                          sorted(all_submissions[student])[-1]) \
+                              for student in all_submissions])
+  return latest_submissions
   
 """
 Gets all lines changed during particular commit.
@@ -190,14 +209,24 @@ def reset_all_to_master(code_dir):
 Copy all final submissions to the directory specified.
 """
 def copy_all_final(code_dir, final_submissions_dir):
-  reset_all_to_master(code_dir)
+  #reset_all_to_master(code_dir)
   uname_lookup_by_year_q = load_uname_lookup_by_year_q()
-  for student in os.listdir(code_dir):
-    student_dir = os.path.join(code_dir, student)
+  for year_q in uname_lookup_by_year_q:
+    print uname_lookup_by_year_q[year_q].keys()
+  latest_submissions = get_latest_submissions(code_dir)
+  num_students = len(latest_submissions)
+  for i, student in enumerate(latest_submissions.keys()):
+    latest_submit = latest_submissions[student]
+    student_dir = os.path.join(code_dir, latest_submit)
     year_q = get_submit_time(student_dir) 
     if not year_q: continue
-    add_uname_to_lookup(student, year_q, uname_lookup_by_year_q)
-    student_id = uname_lookup_by_year_q[year_q][student]
+    if year_q not in uname_lookup_by_year_q or \
+          student not in uname_lookup_by_year_q[year_q]:
+        add_uname_to_lookup(latest_submit, year_q, uname_lookup_by_year_q)
+    else:
+      uname_lookup_by_year_q[year_q][latest_submit] = uname_lookup_by_year_q[year_q][student]
+      del(uname_lookup_by_year_q[year_q][student])
+    student_id = uname_lookup_by_year_q[year_q][latest_submit]
     #target_final_dir = os.path.join(final_submissions_dir, "%s_%s" % (year_q, student))
     target_final_dir = os.path.join(final_submissions_dir, student_id)
     if not os.path.exists(target_final_dir):
@@ -205,4 +234,6 @@ def copy_all_final(code_dir, final_submissions_dir):
     cp_cmd = "cp -r %s/* %s" % (student_dir, target_final_dir)
     call_cmd(cp_cmd)
     print "Copied student %s (%s) to final dir %s" % (student, year_q, target_final_dir)
+  for year_q in uname_lookup_by_year_q:
+    print uname_lookup_by_year_q[year_q].keys()
   export_uname_lookup_by_year_q(uname_lookup_by_year_q)

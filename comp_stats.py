@@ -77,6 +77,41 @@ def per_year_stats(year_q_list, info, non_info):
     print "num in office hours", sum(map(lambda iu: int(iu[ta_visits_ind] != 0), info_filt)), \
         sum(map(lambda iu: int(iu[ta_visits_ind] != 0), non_info_filt))
 
+def save_aggr_csv(output_dir, year_q_list, info, non_info):
+  stud_rows = []
+  stud_rows.append(titles + ['HSS', 'year_q'])
+  posix_range = get_day_range(max(year_q_list), plus_minus=[0,2], incr=day_length)
+  print "posix times", posix_range
+  print "t minus", map(lambda x: get_t_minus(x, max(year_q_list)),
+                       posix_range)
+  for year_q in year_q_list:
+    stud_year_q_rows = []
+    year, q = year_q.split('_')
+    print year_q
+    uname_yearq = '%s%02d' % (year, int(q))
+    info_filt = filter(lambda info_uname: uname_yearq in str(info_uname[uname_ind]),
+                    info)
+    non_info_filt = filter(lambda info_uname: uname_yearq in str(info_uname[uname_ind]),
+                    non_info)
+    sort_info = sorted(info_filt)
+    for stud in sort_info:
+      stud_year_q_rows.append(stud + [True, year_q])
+
+    sort_non_info = sorted(non_info_filt)
+    for stud in sort_non_info:
+      stud_year_q_rows.append(stud + [False, year_q])
+
+    stud_rows += stud_year_q_rows
+
+  # write to output file
+  csv_fname = '%s_student_stats.csv' % ('_'.join(year_q_list))
+  fig_dest = os.path.join(output_dir, csv_fname)
+  with open(fig_dest, 'w') as f:
+    f.write('\n'.join(map(lambda stud_row: ','.join(map(str, stud_row)),
+                          stud_rows)))
+  print "Saving aggregate student stats", fig_dest
+
+
 def component_stats(output_dir, year_q=None):
   global titles
   year_q_list = []
@@ -97,6 +132,7 @@ def component_stats(output_dir, year_q=None):
       info_np, start_sim_posix_ind, frac_sims_ind, titles, use_y=True) 
   
   # prints out some stats
+  save_aggr_csv(output_dir, year_q_list, info, non_info)
   per_year_stats(year_q_list, info, non_info)
 
   print "verify: len info: %s, len non_info: %s" % (len(info), len(non_info))
@@ -132,6 +168,11 @@ def component_stats(output_dir, year_q=None):
 
   draw_timerange(output_dir, year_q_list, info, non_info, sim_thresh, timesim_thresh)
   panic_premed(output_dir, year_q_list, info, non_info, time_thresh)
+  print "online usernames"
+  print (map(lambda iu: str(iu[uname_ind]), filter(filter_by_online(True), info)))
+  print "offline usernames"
+  print (map(lambda iu: str(iu[uname_ind]), filter(filter_by_online(False), info)))
+  print (map(lambda iu: str(iu[uname_ind]), non_info))
   for stat_type in [STAT_GR, STAT_TA, STAT_TIME]:
     draw_bars(output_dir, year_q_list, [info_np], non_info_np, stat_type=stat_type)
     draw_bars(output_dir, year_q_list,
@@ -986,7 +1027,7 @@ def filter_process(output_dir, year_q):
   token_ind, p_self_ind, p_other_ind = 2, 3, 4
   meds = load_meds(output_dir)
 
-  #write_online_stats(output_dir, year_q)
+  write_online_stats(output_dir, year_q)
   online_sims = load_online_stats(output_dir, year_q)
   for uname in online_sims:
     online_np = online_sims[uname][2]

@@ -21,9 +21,8 @@ EXPT_DIR = os.path.join("rawdata", "dir_mass")
 HOLDOUT_DIR = os.path.join("rawdata", "dir_holdout")
 
 CODE_DIR_NAME = os.path.join("rawdata", "dir_mass")
-CODE_DIR_NAME = os.path.join("rawdata", "dir3")
-CODE_DIR_NAME = os.path.join("rawdata", "dir_mass")
 CODE_DIR_NAME = os.path.join("rawdata", "dir_holdout")
+CODE_DIR_NAME = os.path.join("rawdata", "all_orig")
 CODE_DIR = os.path.join(top_dir, CODE_DIR_NAME)
 
 COMMIT_DIR_NAME = "expanded_mass"
@@ -36,11 +35,11 @@ ONLINE_DIR_NAME = "online"
 ONLINE_DIR = os.path.join(COMMIT_DIR, ONLINE_DIR_NAME)
 
 # the most important directory ever
-OUTPUT_DIR_NAME = "proc_output"
+OUTPUT_DIR_NAME = "proc_output_mass_clean"
 OUTPUT_DIR = os.path.join(top_dir, OUTPUT_DIR_NAME)
 
 # for moss
-MOSS_OUTPUT_TOP_DIR = "moss_mass"
+MOSS_OUTPUT_TOP_DIR = "moss_mass_clean"
 
 # for grades
 GRADE_DIR_NAME = "anon_grades"
@@ -51,13 +50,13 @@ Expands all commits.
 
 """
 def run(code_dir, target_dir, final_submissions_dir, output_dir):
-  reset_all_to_master(code_dir)
+  #reset_all_to_master(code_dir)
   #check_timestamps(code_dir)
   #get_unique_unames(code_dir)
 
   #expand_all_commits(code_dir, target_dir)
   # check_all_commits(target_dir, "2012_1")
-  #copy_all_final(code_dir, final_submissions_dir)
+  copy_all_final(code_dir, final_submissions_dir)
   pass
 
 def graph_general(code_dir, output_dir):
@@ -87,21 +86,21 @@ def diff(moss_dir, code_dir, output_dir):
 def moss(moss_dir, output_dir, final_submissions_dir):
   #output_dir = '%s_mass' % output_dir
   #for year_q_dirname in os.listdir(output_dir):
-  make_moss_graphs_multi(output_dir)
-  for year_q_dirname in ['2012_1', '2013_1', '2014_1']:
+  #make_moss_graphs_multi(output_dir)
+  for year_q_dirname in ['2014_1', '2013_1', '2014_1']:
     try:
       year, q = year_q_dirname.split('_')
       int(year), int(q)
     except: continue
     print "Processing moss output for dir %s" % (year_q_dirname)
     #year_q_dirname = 'noonline_2012_1'
-    #moss_process(moss_dir, year_q_dirname, output_dir)
+    moss_process(moss_dir, year_q_dirname, output_dir)
     #make_moss_graphs(output_dir, year_q_dirname)
     #create_gephi(output_dir, year_q_dirname)
 
 def component(output_dir):
   component_stats_multi(output_dir)
-  cvmodel(output_dir)
+  #cvmodel(output_dir)
   for year_q_dirname in ['2012_1', '2013_1', '2014_1']:
     try:
       year, q = year_q_dirname.split('_')
@@ -206,13 +205,15 @@ def baseline(moss_dir, output_dir):
         f.write('%s,%s,%s,%d,%.2f,%.2f\n' % sim)
     """
 if __name__ == "__main__":
-  #run(CODE_DIR, COMMIT_DIR, FINAL_SUBMISSIONS_DIR, OUTPUT_DIR)
-  #graph_general(CODE_DIR, OUTPUT_DIR)
-  #make_holdout(CODE_DIR, HOLDOUT_DIR, EXPT_DIR)
   #anonymize(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, COMMIT_DIR)
+  #make_holdout(CODE_DIR, HOLDOUT_DIR, EXPT_DIR)
+  moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
+  print tfw
+  run(CODE_DIR, COMMIT_DIR, FINAL_SUBMISSIONS_DIR, OUTPUT_DIR)
+  #graph_general(CODE_DIR, OUTPUT_DIR)
   #baseline(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR)
+  print tfw
   component(OUTPUT_DIR)
-  #moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
   #lecture(OUTPUT_DIR)
   #gephi(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR)
   #tokenize(COMMIT_DIR, OUTPUT_DIR)

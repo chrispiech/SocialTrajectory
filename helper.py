@@ -6,7 +6,7 @@ mpl.use('Agg') # to enable non ssh -X
 import matplotlib.pyplot as plt
 import matplotlib.cm as cmx
 import matplotlib.colors as mplcolors
-import javalang
+#import javalang
 import re
 import itertools
 from time import mktime, strptime
@@ -318,9 +318,10 @@ def load_uname_lookup_by_year_q():
   uname_to_id = {}
   
   lookup_folder = os.path.join(top_dir, 'uname_lookup')
-  for lookup in os.listdir(lookup_folder):
-    year_q, ext = lookup.split('.')
-    if ext != 'lookup': continue
+  all_lookups = filter(lambda fname: fname.endswith('lookup'),
+      os.listdir(lookup_folder))
+  for lookup in all_lookups:
+    year_q = lookup.split('.')[0]
     uname_to_id[year_q] = load_uname_to_id_lookup_single_year_q(year_q)
   return uname_to_id
   
@@ -333,6 +334,8 @@ def load_uname_to_id_lookup_single_year_q(year_q):
       line = line.strip()
       if line:
         ind, uname = line.split(',')
+        if len(uname.split('_')) > 1:
+          uname = uname.split('_')[0]
         uname_to_id[uname] = ind
   return uname_to_id
 
@@ -348,7 +351,7 @@ def add_uname_to_lookup(uname, year_q, uname_lookup_by_year_q):
 def export_uname_lookup_by_year_q(uname_lookup_by_year_q):
   lookup_folder = os.path.join(top_dir, 'uname_lookup')
   for year_q in uname_lookup_by_year_q:
-    lookup_dest = os.path.join(lookup_folder, '%s.%s' % (year_q, 'lookup2222'))
+    lookup_dest = os.path.join(lookup_folder, '%s.%s' % (year_q, 'lookup'))
     with open(lookup_dest, 'w') as f:
       unames_by_year = uname_lookup_by_year_q[year_q].values()
       unames_by_year.sort()
@@ -362,10 +365,6 @@ def export_uname_lookup_by_year_q(uname_lookup_by_year_q):
         f.write('%s,%s\n' % (student_id, temp_uname_dict[student_id]))
       # for uname in unames_by_year:
       #   f.write('%s,%s\n' % (uname_lookup_by_year_q[year_q][uname], uname))
-    lookup_orig = os.path.join(lookup_folder, '%s.%s' % (year_q, 'lookup'))
-    mv_cmd = "cp %s %s" % (lookup_dest, lookup_orig)
-    print "Moving", mv_cmd
-    call_cmd(mv_cmd)
 
 """Plot black line on the aggregate student plot.
 This marks the 95th percentile for similarities at any given timestep.
@@ -417,14 +416,27 @@ commit index: starts from 0.
 def load_posix_to_commit_ind(output_dir, year_q):
   lookup_dict = {}
   stats_dir = os.path.join(output_dir, year_q, 'stats')
-  for student_f in os.listdir(stats_dir):
-    uname = student_f.split('.')[0]
+  # for student_f in os.listdir(stats_dir):
+  #   uname = student_f.split('.')[0]
+  #   lookup_dict[uname] = {}
+  #   with open(os.path.join(stats_dir, student_f), 'r') as f:
+  #     lines = f.readlines()
+  #     for i, line in zip(range(len(lines)-1, -1, -1), lines):
+  #       posix_time = line.split('\t')[1]
+  #       lookup_dict[uname][int(posix_time)] = i
+  moss_dir = os.path.join(output_dir, year_q, 'moss')
+  all_lines = filter(lambda fname: fname.endswith('csv'), os.listdir(moss_dir))
+  fields = [line.split('_') for line in all_lines]
+  temp_dict = {}
+  for uname, posix_time, _ in fields:
+    if uname not in temp_dict:
+      temp_dict[uname] = []
+    temp_dict[uname].append(int(posix_time))
+  for uname in temp_dict:
     lookup_dict[uname] = {}
-    with open(os.path.join(stats_dir, student_f), 'r') as f:
-      lines = f.readlines()
-      for i, line in zip(range(len(lines)-1, -1, -1), lines):
-        posix_time = line.split('\t')[1]
-        lookup_dict[uname][int(posix_time)] = i
+    for i, posix_time in enumerate(sorted(temp_dict[uname])):
+      lookup_dict[uname][posix_time] = i
+    
   return lookup_dict
 
 """
