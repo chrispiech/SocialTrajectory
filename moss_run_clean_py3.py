@@ -3,12 +3,11 @@
 import os, sys, subprocess
 import pymoss
 import shutil
+import threading
+from multiprocessing import Pool as ThreadPool
+import time
 
-def load_path():
-  with open('file_path.csv', 'r') as f:
-    top_dir = f.readline().strip().split(',')[0]
-  return top_dir
-top_dir = load_path()
+top_dir = os.getcwd()
 
 baseline = True # running only final submissions against each other
 use_sample = False
@@ -25,19 +24,17 @@ ONLINE_DIR_NAME = "online" # all known online versions
 ONLINE_DIR = os.path.join(TARGET_DIR, ONLINE_DIR_NAME)
 NOONLINE_DIR_NAME = "noonline"
 STARTER_DIR_NAME = "STARTER"
+STARTER_DIR = os.path.join(TARGET_DIR, STARTER_DIR_NAME)
 
 MOSS_DIR_NAME = "moss_mass_clean"
 MOSS_OUTPUT_DIR = os.path.join(top_dir, MOSS_DIR_NAME)
-filetype = "java"
+FILETYPE = "java"
+
 
 def call_cmd(cmd):
   return subprocess.Popen([cmd],stdout=subprocess.PIPE, shell=True).communicate()[0]
 
-def baseline(TARGET_DIR, CURRENT_Q,
-                FINAL_SUBMISSIONS_DIR_NAME,
-                ONLINE_DIR_NAME,
-                STARTER_DIR_NAME,
-                MOSS_OUTPUT_DIR):
+def baseline(CURRENT_Q):
   current_q = 'baseline'
   if not os.path.exists(os.path.join(MOSS_OUTPUT_DIR, current_q)):
     os.makedirs(os.path.join(MOSS_OUTPUT_DIR, current_q))
@@ -48,7 +45,7 @@ def baseline(TARGET_DIR, CURRENT_Q,
   cwd = os.getcwd()
   os.chdir(TARGET_DIR)
   print("in dir", TARGET_DIR)
-  m = pymoss.Runner(filetype)
+  m = pymoss.Runner(FILETYPE)
   m.add(STARTER_DIR_NAME, pymoss.util.STARTER)
   m.add_all(ONLINE_DIR_NAME, pymoss.util.ARCHIVE)
   m.add_all(current_q)
@@ -63,79 +60,111 @@ def baseline(TARGET_DIR, CURRENT_Q,
   print("moving moss output:", mv_cmd)
   call_cmd(mv_cmd)
 
-def multi_moss(TARGET_DIR, CURRENT_Q,
-                FINAL_SUBMISSIONS_DIR_NAME,
-                MOSS_OUTPUT_DIR):
+class LockedCounter(object):
+  def __init__(self):
+    self.lock = threading.Lock()
+    self.count = 0
+  
+  def increment(self):
+    with self.lock:
+      self.count += 1
+    return self.count
+global_counter = LockedCounter()
+
+def multi_moss(CURRENT_Q):
   # make temp dir in base_dir
   # for each dir in target_dir, add to temp
   # once directory is generated, move to moss_output_dir
-  if not os.path.exists(os.path.join(MOSS_OUTPUT_DIR, CURRENT_Q)):
-    os.makedirs(os.path.join(MOSS_OUTPUT_DIR, CURRENT_Q))
+  current_q_dir = os.path.join(TARGET_DIR, CURRENT_Q)
+  moss_q_dir = os.path.join(MOSS_OUTPUT_DIR, CURRENT_Q)
+  if not os.path.exists(moss_q_dir):
+    os.makedirs(moss_q_dir)
 
-  cwd = os.getcwd()
-  os.chdir(TARGET_DIR)
-  print("in dir", TARGET_DIR)
-
-  final_current_q_dir = ''
   count = -1 # run all of them
-  commit_tot = len(os.listdir(CURRENT_Q))
-  commit_count = 0
-  print("num commits", commit_tot, CURRENT_Q)
-  uname = '2014010069'
-  for i, commit in enumerate(os.listdir(CURRENT_Q)):
-    if uname not in commit: continue
-    print("{}/{}: starting moss for commit {}".format(
-      i, commit_tot, commit))
-    java_files = filter(lambda fname: filetype in fname,
-                os.listdir(os.path.join(CURRENT_Q, commit)))
-    if not java_files:
-      print("skipping dir %s (no %s files)" % (commit, filetype))
-      continue
+  commit_tot = len(os.listdir(current_q_dir))
+  # uname = '2014010069'
+  # if uname not in commit: continue
+  commits = os.listdir(current_q_dir)[:20]
+  zipped_args = [(commit, commit_tot, CURRENT_Q) \
+      for commit in commits]
+  pool = ThreadPool(8) # 8 at once?
+  results = pool.map(thread_process, zipped_args)
+  pool.close()
+  pool.join()
 
-    commit_moss_dir = os.path.join(MOSS_OUTPUT_DIR, CURRENT_Q, commit)
-    if os.path.exists(commit_moss_dir):
-      print("commit already processed")
-      continue
-    temp_dir = "temp_%s" % commit
-    output_temp_dir = "output_%s" % commit
-    if os.path.exists(temp_dir):
-      shutil.rmtree(temp_dir)
-    if os.path.exists(output_temp_dir):
-      shutil.rmtree(output_temp_dir)
-    os.mkdir(temp_dir)
-    for java_f in java_files:
-      f_prefix = java_f.split('.')[0]
-      java_moss_dir = os.path.join(temp_dir,
-                            '%s_%s' % (commit, f_prefix))
-      os.mkdir(java_moss_dir)
-      cp_cmd = "cp %s %s/." % (os.path.join(CURRENT_Q, commit, java_f),
-                                java_moss_dir)
-      call_cmd(cp_cmd)
+def thread_process(args):
+  commit, commit_tot, current_q = args
+  current_q_dir = os.path.join(TARGET_DIR, current_q)
+  moss_q_dir = os.path.join(MOSS_OUTPUT_DIR, current_q)
+  final_q_dir = os.path.join(FINAL_SUBMISSIONS_DIR, current_q)
 
-    # make basically no threshold
-    m = pymoss.Runner(filetype, threshold=10 ** 9)
-    try:
-      m.add(STARTER_DIR_NAME, pymoss.util.STARTER)
-      m.add_all(temp_dir, prefix="")
-      if final_current_q_dir:
-        m.add_all(final_current_q_dir, pymoss.util.ARCHIVE)
-      else:
-        m.add_all(FINAL_SUBMISSIONS_DIR_NAME, pymoss.util.ARCHIVE)
-      m.add_all(ONLINE_DIR_NAME, pymoss.util.ARCHIVE)
+  commit_count = global_counter.increment()
+  print("{}/{}: starting moss for commit {}".format(
+    commit_count, commit_tot, commit))
 
-      m.run(npairs=5)
-      h = pymoss.Html(m, "%s" % commit)
-      moss_dir = (h.gen_all(output_temp_dir)).split('/')[-1]
-      mv_cmd = "mv %s %s" % (os.path.join(cwd, moss_dir), commit_moss_dir)
-      print("moving moss output to", commit_moss_dir)
-      call_cmd(mv_cmd)
-    finally: m.cleanup()
+  commit_moss_dir = os.path.join(moss_q_dir, commit)
+  if os.path.exists(commit_moss_dir):
+    print("commit already processed")
+    return
+  temp_dir = prepare_temp_dir(current_q_dir, commit)
+  if not temp_dir:
+    print("skipping dir %s (no %s files)" % (commit, FILETYPE))
+    return
 
-    rm_cmd = "rm -r %s/*" % (os.path.join(TARGET_DIR,temp_dir))
-    call_cmd(rm_cmd)
-    count -= 1
-    if count == 0: break
-  os.chdir(cwd)
+  # make basically no threshold
+  m = make_moss_runner(temp_dir, final_q_dir)
+  try:
+    gen_moss_output(m, commit, commit_moss_dir)
+  finally: m.cleanup()
+
+  rm_cmd = "rm -r %s" % temp_dir
+  call_cmd(rm_cmd)
+
+def prepare_temp_dir(expanded_moss_dir, commit):
+  commit_dir = os.path.join(expanded_moss_dir, commit)
+  java_files = filter(lambda fname: FILETYPE in fname,
+              os.listdir(commit_dir))
+  if not java_files:
+    return ''
+  temp_dir = "temp_%s" % commit
+  if os.path.exists(temp_dir):
+    shutil.rmtree(temp_dir)
+  os.mkdir(temp_dir)
+  for java_f in java_files:
+    f_prefix = java_f.split('.')[0]
+    java_moss_dir = os.path.join(temp_dir,
+                          '%s_%s' % (commit, f_prefix))
+    os.mkdir(java_moss_dir)
+    cp_cmd = "cp %s %s/." % (os.path.join(commit_dir, java_f),
+                              java_moss_dir)
+    call_cmd(cp_cmd)
+  return temp_dir
+
+def make_moss_runner(self_dir, other_dir):
+  m = pymoss.Runner(FILETYPE, threshold=10 ** 9)
+  m.add(STARTER_DIR, pymoss.util.STARTER)
+  m.add_all(self_dir, prefix="")
+  m.add_all(other_dir, pymoss.util.ARCHIVE)
+  m.add_all(ONLINE_DIR, pymoss.util.ARCHIVE)
+  return m
+
+def gen_moss_output(moss_runner, commit, output_dir):
+  moss_runner.run(npairs=5)
+  output_temp_dir = 'output_%s' % commit
+  if os.path.exists(output_temp_dir):
+    shutil.rmtree(output_temp_dir)
+  h = pymoss.Html(moss_runner, "%s" % commit)
+  #moss_dir = (h.gen_all(output_temp_dir)).split('/')[-1]
+  moss_dir = h.gen_all(output_temp_dir)
+  mv_cmd = "mv %s %s" % (moss_dir, output_dir)
+  print("moving moss output to", output_dir)
+  call_cmd(mv_cmd)
+
+def seconds_to_time(seconds):
+  dec = ("%.4f" % (seconds % 1)).lstrip('0')
+  m, s = divmod(seconds, 60)
+  h, m = divmod(m, 60)
+  return "%d:%02d:%02d%s" % (h, m, s, dec)
  
 if __name__ == "__main__":
   CURRENT_Q = "2014_1"
@@ -147,9 +176,16 @@ if __name__ == "__main__":
       int(year), int(q)
     except: continue
 
-  for year_q_dirname in ["2014_1"]:
+  runtimes = []
+  year_q_dirnames = ["2012_1"]
+  for year_q_dirname in year_q_dirnames:
+    start_time = time.time()
     pymoss.util.time("Running all moss", lambda:
-                  multi_moss(TARGET_DIR, year_q_dirname,
-                      FINAL_SUBMISSIONS_DIR_NAME,
-                      MOSS_OUTPUT_DIR))
-    year_q_dirname = '2014_1'
+                  multi_moss(year_q_dirname))
+    end_time = time.time()
+    runtimes.append(end_time - start_time)
+
+  print("Summary of times for each quarter...")
+  for year_q, time_elapsed in zip(year_q_dirnames, runtimes):
+    print("{}: {} ({})".format(year_q,
+      seconds_to_time(time_elapsed), time_elapsed))

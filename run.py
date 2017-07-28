@@ -50,7 +50,7 @@ Expands all commits.
 
 """
 def run(code_dir, target_dir, final_submissions_dir, output_dir):
-  #reset_all_to_master(code_dir)
+  reset_all_to_master(code_dir)
   #check_timestamps(code_dir)
   #get_unique_unames(code_dir)
 
@@ -87,7 +87,7 @@ def moss(moss_dir, output_dir, final_submissions_dir):
   #output_dir = '%s_mass' % output_dir
   #for year_q_dirname in os.listdir(output_dir):
   #make_moss_graphs_multi(output_dir)
-  for year_q_dirname in ['2014_1', '2013_1', '2014_1']:
+  for year_q_dirname in ['2012_1', '2013_1', '2014_1']:
     try:
       year, q = year_q_dirname.split('_')
       int(year), int(q)
@@ -207,9 +207,8 @@ def baseline(moss_dir, output_dir):
 if __name__ == "__main__":
   #anonymize(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, COMMIT_DIR)
   #make_holdout(CODE_DIR, HOLDOUT_DIR, EXPT_DIR)
-  moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
-  print tfw
   run(CODE_DIR, COMMIT_DIR, FINAL_SUBMISSIONS_DIR, OUTPUT_DIR)
+  moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
   #graph_general(CODE_DIR, OUTPUT_DIR)
   #baseline(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR)
   print tfw

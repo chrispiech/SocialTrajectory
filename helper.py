@@ -334,8 +334,6 @@ def load_uname_to_id_lookup_single_year_q(year_q):
       line = line.strip()
       if line:
         ind, uname = line.split(',')
-        if len(uname.split('_')) > 1:
-          uname = uname.split('_')[0]
         uname_to_id[uname] = ind
   return uname_to_id
 

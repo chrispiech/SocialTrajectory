@@ -221,14 +221,11 @@ def copy_all_final(code_dir, final_submissions_dir):
     year_q = get_submit_time(student_dir) 
     if not year_q: continue
     if year_q not in uname_lookup_by_year_q or \
-          student not in uname_lookup_by_year_q[year_q]:
+          latest_submit not in uname_lookup_by_year_q[year_q]:
         add_uname_to_lookup(latest_submit, year_q, uname_lookup_by_year_q)
-    else:
-      uname_lookup_by_year_q[year_q][latest_submit] = uname_lookup_by_year_q[year_q][student]
-      del(uname_lookup_by_year_q[year_q][student])
     student_id = uname_lookup_by_year_q[year_q][latest_submit]
     #target_final_dir = os.path.join(final_submissions_dir, "%s_%s" % (year_q, student))
-    target_final_dir = os.path.join(final_submissions_dir, student_id)
+    target_final_dir = os.path.join(final_submissions_dir, year_q, student_id)
     if not os.path.exists(target_final_dir):
       os.makedirs(target_final_dir)
     cp_cmd = "cp -r %s/* %s" % (student_dir, target_final_dir)
