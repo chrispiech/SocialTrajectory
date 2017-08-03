@@ -1,5 +1,6 @@
 from git_helper import *
 from general_stats import *
+from multiprocessing import Pool as ThreadPool
 
 """
 Goes through everything and changes all commits per
@@ -14,29 +15,68 @@ def expand_all_commits(code_dir, target_dir):
   uname_lookup_by_year_q = load_uname_lookup_by_year_q()
   latest_submissions = get_latest_submissions(code_dir)
   num_students = len(latest_submissions)
-  for i, student in enumerate(latest_submissions.keys()):
+
+  def get_commit_args(args):
+    i, student = args
     latest_submit = latest_submissions[student]
     student_dir = os.path.join(code_dir, latest_submit)
-    all_commits = git_log(git_dir=student_dir,
-            format_str="%h %ct",
-            extra_str="--date=local").split('\n')
-    if not all_commits[0]:
-      print "expand: %s ignored, corrupt git" % (student)
-      continue
-
     year_q = get_submit_time(student_dir) 
+    if not year_q: return (-1,'','',-1,'',-1)
     year_target_dir = os.path.join(target_dir, year_q)
-
     if year_q not in uname_lookup_by_year_q or \
           latest_submit not in uname_lookup_by_year_q[year_q]:
         add_uname_to_lookup(latest_submit, year_q, uname_lookup_by_year_q)
     student_id = uname_lookup_by_year_q[year_q][latest_submit]
-    num_commits = len(all_commits)
-    for j, commit in enumerate(all_commits):
-      print "student {}/{} {}: commit {}/{}".format(
-          i, num_students, student, j, num_commits)
-      git_checkout(commit, orig_dir=student_dir, target_dir=year_target_dir, prefix=student_id)
+    return i, student, student_dir, student_id, year_target_dir, num_students
+
+  students = sorted(latest_submissions.keys())
+  zipped_args = map(get_commit_args, enumerate(students))
+  pool = ThreadPool(8)
+  results = pool.map(thread_process_commit, zipped_args)
+  pool.close()
+  pool.join()
   export_uname_lookup_by_year_q(uname_lookup_by_year_q)
+
+def thread_process_commit(args):
+  i, student, student_dir, student_id, year_target_dir, num_students = args
+  if i == -1: return
+  all_commits = git_log(git_dir=student_dir,
+          format_str="%h %ct",
+          extra_str="--date=local").split('\n')
+  if not all_commits[0]:
+    print "expand: %s ignored, corrupt git" % (student)
+    return
+
+  num_commits = len(all_commits)
+  for j, commit in enumerate(all_commits):
+    print "student {}/{}: commit {}/{}".format(
+        i, num_students, j, num_commits)
+    git_checkout(commit, orig_dir=student_dir, target_dir=year_target_dir, prefix=student_id)
+
+
+#   for i, student in enumerate(latest_submissions.keys()):
+#     latest_submit = latest_submissions[student]
+#     student_dir = os.path.join(code_dir, latest_submit)
+#     all_commits = git_log(git_dir=student_dir,
+#             format_str="%h %ct",
+#             extra_str="--date=local").split('\n')
+#     if not all_commits[0]:
+#       print "expand: %s ignored, corrupt git" % (student)
+#       continue
+# 
+#     year_q = get_submit_time(student_dir) 
+#     year_target_dir = os.path.join(target_dir, year_q)
+# 
+#     if year_q not in uname_lookup_by_year_q or \
+#           latest_submit not in uname_lookup_by_year_q[year_q]:
+#         add_uname_to_lookup(latest_submit, year_q, uname_lookup_by_year_q)
+#     student_id = uname_lookup_by_year_q[year_q][latest_submit]
+#     num_commits = len(all_commits)
+#     for j, commit in enumerate(all_commits):
+#       print "student {}/{} {}: commit {}/{}".format(
+#           i, num_students, student, j, num_commits)
+#       git_checkout(commit, orig_dir=student_dir, target_dir=year_target_dir, prefix=student_id)
+#   export_uname_lookup_by_year_q(uname_lookup_by_year_q)
 
 def get_latest_submissions(code_dir):
   all_submissions = {}
