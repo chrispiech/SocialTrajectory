@@ -60,15 +60,17 @@ def baseline(CURRENT_Q):
   print("moving moss output:", mv_cmd)
   call_cmd(mv_cmd)
 
+from multiprocessing import Lock, Value
 class LockedCounter(object):
   def __init__(self):
-    self.lock = threading.Lock()
-    self.count = 0
+    self.lock = Lock()
+    self.count = Value('i', 0)
   
-  def increment(self):
+  def incr_and_get(self):
     with self.lock:
-      self.count += 1
-    return self.count
+      self.count.value += 1
+      return self.count.value
+
 global_counter = LockedCounter()
 
 def multi_moss(CURRENT_Q):
@@ -84,7 +86,7 @@ def multi_moss(CURRENT_Q):
   commit_tot = len(os.listdir(current_q_dir))
   # uname = '2014010069'
   # if uname not in commit: continue
-  commits = os.listdir(current_q_dir)[:20]
+  commits = os.listdir(current_q_dir)
   zipped_args = [(commit, commit_tot, CURRENT_Q) \
       for commit in commits]
   pool = ThreadPool(8) # 8 at once?
@@ -98,7 +100,7 @@ def thread_process(args):
   moss_q_dir = os.path.join(MOSS_OUTPUT_DIR, current_q)
   final_q_dir = os.path.join(FINAL_SUBMISSIONS_DIR, current_q)
 
-  commit_count = global_counter.increment()
+  commit_count = global_counter.incr_and_get()
   print("{}/{}: starting moss for commit {}".format(
     commit_count, commit_tot, commit))
 
@@ -167,8 +169,6 @@ def seconds_to_time(seconds):
   return "%d:%02d:%02d%s" % (h, m, s, dec)
  
 if __name__ == "__main__":
-  CURRENT_Q = "2014_1"
-
   print(os.listdir(TARGET_DIR))
   for year_q_dirname in os.listdir(TARGET_DIR):
     try:
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     except: continue
 
   runtimes = []
-  year_q_dirnames = ["2012_1"]
+  year_q_dirnames = ["2014_1"]
   for year_q_dirname in year_q_dirnames:
     start_time = time.time()
     pymoss.util.time("Running all moss", lambda:
