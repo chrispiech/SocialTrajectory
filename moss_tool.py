@@ -248,7 +248,13 @@ def format_top_sims(uname, commit_dict):
     self_f, fpath_other, report_html, token, pself, pother = commit_dict[commit]
     fname = self_f.split('_')[-1] # e.g., "Breakout"
     tup_other = fpath_other.split('/')
-    type_other, other_uname = tup_other[0], tup_other[-1]
+    # /mnt_crypt/socialTrajectories/expanded_mass/final_submissions/2012_1/2012010326
+    other_uname = tup_other[-1]
+    if 'online' in tup_other:
+      type_other = 'online'
+    else:
+      type_other = 'final_submissions'
+    
     per_commit.append(map(str,
       (uname, other_uname, token, pself, pother, i, posix_time,
         commit_hash, fname, commit, type_other, fpath_other, report_html)))

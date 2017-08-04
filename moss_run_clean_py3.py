@@ -1,4 +1,4 @@
-#!/usr/bin/python6
+#!/usr/bin/python3
 
 import os, sys, subprocess
 import pymoss
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     except: continue
 
   runtimes = []
-  year_q_dirnames = ["2014_1"]
+  year_q_dirnames = ["2012_1"]
   for year_q_dirname in year_q_dirnames:
     start_time = time.time()
     pymoss.util.time("Running all moss", lambda:
