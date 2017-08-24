@@ -572,6 +572,12 @@ def multi_moss_noonline(TARGET_DIR, CURRENT_Q,
     if count == 0: break
   os.chdir(cwd)
 
+import time
+def seconds_to_time(seconds):
+    dec = ("%.4f" % (seconds % 1)).lstrip('0')
+    m, s = divmod(seconds, 60)
+    h, m = divmod(m, 60)
+    return "%d:%02d:%02d%s" % (h, m, s, dec)
 
 if __name__ == "__main__":
   CURRENT_Q = "2012_1"
@@ -582,25 +588,33 @@ if __name__ == "__main__":
   #                   FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
   #                   STARTER_DIR_NAME,
   #                   MOSS_OUTPUT_DIR))
-  print(os.listdir(TARGET_DIR))
-  for year_q_dirname in os.listdir(TARGET_DIR):
+  target_dirs = os.listdir(TARGET_DIR)
+  print(target_dirs)
+  target_dirs = ['2012_1', '2013_1', '2014_1']
+  runtimes = []
+
+  for year_q_dirname in target_dirs:
     try:
       year, q = year_q_dirname.split('_')
       int(year), int(q)
     except: continue
 
-    # pymoss.util.time("Running all moss", lambda:
-    #               multi_moss(TARGET_DIR, year_q_dirname,
-    #                   FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
+    # multi_moss(TARGET_DIR, year_q_dirname,
+    #                   LECTURE_DIR_NAME, ONLINE_DIR_NAME,
     #                   STARTER_DIR_NAME,
-    #                   MOSS_OUTPUT_DIR))
-    year_q_dirname = '2014_1'
-    pymoss.util.time("Running lecture moss", lambda:
-                  multi_moss_lecture(TARGET_DIR, year_q_dirname,
-                      LECTURE_DIR_NAME, ONLINE_DIR_NAME,
-                      STARTER_DIR_NAME,
-                      MOSS_OUTPUT_DIR))
-    break
+    #                   MOSS_OUTPUT_DIR)
+    # pymoss.util.time("Running all moss", lambda:
+    print("Running all moss")
+    start_time = time.time()
+    multi_moss(TARGET_DIR, year_q_dirname,
+        FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
+        STARTER_DIR_NAME,
+        MOSS_OUTPUT_DIR)
+    end_time = time.time()
+    runtimes.append(seconds_to_time(end_time - start_time))
+
+  for year_q_dirname, runtime in zip(target_dirs, runtimes):
+    print(year_q_dirname, runtime)
   # pymoss.util.time("Running all moss with no online", lambda:
   #               multi_moss_diff(TARGET_DIR, CURRENT_Q,
   #                   FINAL_SUBMISSIONS_DIR_NAME, ONLINE_DIR_NAME,
