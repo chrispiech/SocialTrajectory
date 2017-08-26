@@ -22,7 +22,7 @@ HOLDOUT_DIR = os.path.join("rawdata", "dir_holdout")
 
 CODE_DIR_NAME = os.path.join("rawdata", "dir_mass")
 CODE_DIR_NAME = os.path.join("rawdata", "dir_holdout")
-CODE_DIR_NAME = os.path.join("rawdata", "all_orig")
+CODE_DIR_NAME = os.path.join("rawdata")
 CODE_DIR = os.path.join(top_dir, CODE_DIR_NAME)
 
 COMMIT_DIR_NAME = "expanded_mass"
@@ -35,22 +35,23 @@ ONLINE_DIR_NAME = "online"
 ONLINE_DIR = os.path.join(COMMIT_DIR, ONLINE_DIR_NAME)
 
 # the most important directory ever
-OUTPUT_DIR_NAME = "proc_output_mass_clean"
+OUTPUT_DIR_NAME = "proc_output"
 OUTPUT_DIR = os.path.join(top_dir, OUTPUT_DIR_NAME)
 
 # for moss
-MOSS_OUTPUT_TOP_DIR = "moss_mass_clean"
+MOSS_OUTPUT_TOP_DIR = "moss_mass"
 
 # for grades
 GRADE_DIR_NAME = "anon_grades"
 GRADE_DIR = os.path.join(OUTPUT_DIR, GRADE_DIR_NAME)
+GRADES_AND_LAIR_DIR = os.path.join("grades_and_lair")
 
 """
 Expands all commits.
 
 """
 def run(code_dir, target_dir, final_submissions_dir, output_dir):
-  #reset_all_to_master(code_dir)
+  reset_all_to_master(code_dir)
   #check_timestamps(code_dir)
   #get_unique_unames(code_dir)
 
@@ -160,7 +161,8 @@ def probs(commit_dir, output_dir):
 
 def anonymize(moss_dir, output_dir, commit_dir):
   #anonymize_all(moss_dir, output_dir, commit_dir)
-  anonymize_all(moss_dir, output_dir, commit_dir, code_dir=CODE_DIR)
+  #anonymize_all(moss_dir, output_dir, commit_dir, code_dir=CODE_DIR)
+  anonymize_grades_and_lair(GRADES_AND_LAIR_DIR)
 
 def make_holdout(code_dir, holdout_dir, expt_dir, n=400):
   unique_unames = get_unique_unames(code_dir)

@@ -26,7 +26,7 @@ NOONLINE_DIR_NAME = "noonline"
 STARTER_DIR_NAME = "STARTER"
 STARTER_DIR = os.path.join(TARGET_DIR, STARTER_DIR_NAME)
 
-MOSS_DIR_NAME = "moss_mass_clean"
+MOSS_DIR_NAME = "moss_mass"
 MOSS_OUTPUT_DIR = os.path.join(top_dir, MOSS_DIR_NAME)
 FILETYPE = "java"
 
@@ -83,10 +83,11 @@ def multi_moss(CURRENT_Q):
     os.makedirs(moss_q_dir)
 
   count = -1 # run all of them
-  commit_tot = len(os.listdir(current_q_dir))
   # uname = '2014010069'
   # if uname not in commit: continue
   commits = os.listdir(current_q_dir)
+  if count != -1: commits = commits[:count]
+  commit_tot = len(commits)
   zipped_args = [(commit, commit_tot, CURRENT_Q) \
       for commit in commits]
   pool = ThreadPool(8) # 8 at once?
@@ -177,7 +178,7 @@ if __name__ == "__main__":
     except: continue
 
   runtimes = []
-  year_q_dirnames = ["2012_1"]
+  year_q_dirnames = ["2012_1", "2013_1", "2014_1"]
   for year_q_dirname in year_q_dirnames:
     start_time = time.time()
     pymoss.util.time("Running all moss", lambda:

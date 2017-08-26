@@ -17,7 +17,7 @@ For each new year, we should probably modifiy add_uname_to_lookup
 code inside helper.py, but for now everything it's alright.
 """
 
-def anonymize_all(moss_dir, output_dir, commit_dir, code_dir=None):
+def anonymize_all(moss_dir, output_dir, commit_dir, grades_and_lair_dir=None):
   uname_lookup = load_uname_to_id_lookup()
   # reload lookups for sorting...
   # print "Doing some reloading of usernames"
@@ -33,14 +33,15 @@ def anonymize_all(moss_dir, output_dir, commit_dir, code_dir=None):
     #anonymize_top_sims(moss_dir, year_q_dirname, output_dir, uname_lookup)
     #anonymize_all_sims(os.path.join(output_dir, year_q_dirname, 'moss'), uname_lookup)
     #anonymize_stats(os.path.join(output_dir, year_q_dirname, 'stats'), uname_lookup)
-  if code_dir:
-    real_grades = os.path.join(code_dir, 'real_grades')
-    anon_grades = os.path.join(code_dir, 'anon_grades')
-    anonymize_grades(real_grades, anon_grades, uname_lookup)
+def anonymize_grades_and_lair(grades_and_lair_dir):
+  uname_lookup = load_uname_to_id_lookup()
+  real_grades = os.path.join(grades_and_lair_dir, 'real_grades')
+  anon_grades = os.path.join(grades_and_lair_dir, 'anon_grades')
+  anonymize_grades(real_grades, anon_grades, uname_lookup)
 
-    real_lair = os.path.join(code_dir, 'real_lair')
-    anon_lair = os.path.join(code_dir, 'anon_lair')
-    anonymize_lair(real_lair, anon_lair, uname_lookup)
+  real_lair = os.path.join(grades_and_lair_dir, 'real_lair')
+  anon_lair = os.path.join(grades_and_lair_dir, 'anon_lair')
+  anonymize_lair(real_lair, anon_lair, uname_lookup)
 
   # new_unames = []
   # for year_q_dirname in os.listdir(commit_dir):
@@ -312,6 +313,7 @@ def anonymize_lair(real_dir, anon_dir, uname_lookup_orig):
         #print count
         pass
       count += 1
+      if len(row) < 5: continue
       uname, ta_uname, classname, year_q_str, start_help, _, end_help, prob, sol = \
           row
 
