@@ -518,6 +518,11 @@ GRADE_NAMES = ["assgt1", "assgt2", "assgt3",
                "final"]
 GRADE_TYPES = ["abs", "rank"]
 
+def load_all_graderanks(output_dir, year_q):
+    grade_dict = load_all_grades(output_dir, year_q)
+    gr = get_graderank_dict(grade_dict)
+    return gr
+
 """
 student --> (midterm, final)
 Some students dropped the class after the midterm, so they have no
@@ -575,8 +580,8 @@ def get_graderank_dict(grades_dict, mt_max=140.0, f_max=180.0):
     return rankdict
   grade_list = []
   for uname in grades_dict:
-    if min(grades_dict[uname]) == -1:
-      continue
+    # if min(grades_dict[uname]) == -1:
+    #   continue
     grade_list.append((uname, grades_dict[uname]))
 
   unames, all_grades = zip(*grade_list)
@@ -586,17 +591,34 @@ def get_graderank_dict(grades_dict, mt_max=140.0, f_max=180.0):
   all_grades = []
   all_ranks = []
   for g_ind in range(num_grades):
+    g_s = -1*np.ones((len(grade_list),))
+    r_s = -1*np.ones((len(grade_list),))
+
+    grades_i = all_grades_np[:,g_ind]
+    nz_grades = np.nonzero(grades_i > -1)[0]
+    g_s[nz_grades] = grades_i[nz_grades]/float(GRADE_MAXES[g_ind])
+    all_grades.append(g_s.tolist())
+
+    inds_i = np.argsort(grades_i[nz_grades])
+    ranks_i = np.linspace(0.0, 1.0, len(nz_grades))[np.argsort(inds_i)]
+    r_s[nz_grades] = ranks_i
+    all_ranks.append(r_s.tolist())
+
+    # commented out for now because i'm confused
+    """
     grades_i = all_grades_np[:,g_ind]
     all_grades.append((grades_i/float(GRADE_MAXES[g_ind])).tolist())
     inds_i = np.argsort(grades_i)
     ranks_i = np.linspace(0.0, 1.0, len(grade_list))[np.argsort(inds_i)]
     all_ranks.append(ranks_i.tolist())
+    """
 
   all_grades = zip(*all_grades)
   all_ranks = zip(*all_ranks)
   for i in range(len(grade_list)):
     rankdict[str(unames[i])] = (all_grades[i], all_ranks[i])
   return rankdict
+
 
 """
 Get number of ta sessions and hours (posix secs) within a certain period.
