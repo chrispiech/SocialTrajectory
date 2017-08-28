@@ -36,6 +36,106 @@ BT_MT_FINAL_TIME = 4
 LATE_ASSGT_TA_TIME = 5
 B4_ASSGT_TIME = 6
 ta_bounds_str = ['allta', 'onlyassgt3', 'untilassgt3deadline', 'beforemt', 'btexams', 'lateta', 'b4assgt']
+def get_ta_stats_only(output_dir, year_q=None, ta_bounds=ALL_TA_TIME):
+  year_q_list = []
+  lair_dict = {}
+  if not year_q:
+    for year_q_dirname in ['2012_1', '2013_1', '2014_1']:
+      try:
+        year, q = year_q_dirname.split('_')
+        int(year), int(q)
+      except: continue
+
+      year_q = year_q_dirname
+      lair_dict.update(load_student_lair(output_dir, year_q))
+      print "num students gotten help in %s:" % year_q, len(load_student_lair(output_dir, year_q).keys())
+      year_q_list.append(year_q)
+    year_q_list.sort()
+    year_q = '2014_1'
+  else:
+    lair_dict = load_student_lair(output_dir, year_q)
+  start_time_bound = all_startend_times[year_q][START_TIME]
+  end_time_bound = all_startend_times[year_q][END_TIME] + 2*day_length
+  if ta_bounds == B4_ASSGT_DEAD_TA_TIME:
+    start_time_bound = 0
+    end_time_bound = all_startend_times[year_q][END_TIME] + 2*day_length
+  elif ta_bounds == B4_MT_TIME:
+    start_time_bound = 0 # no bound...
+    end_time_bound = all_exam_times[year_q][MT_TIME]
+  elif ta_bounds == BT_MT_FINAL_TIME:
+    start_time_bound = all_exam_times[year_q][MT_TIME]
+    end_time_bound = all_exam_times[year_q][FINAL_TIME]
+  elif ta_bounds == LATE_ASSGT_TA_TIME:
+    start_time_bound = all_startend_times[year_q][END_TIME] - 3.5*day_length
+    end_time_bound = all_startend_times[year_q][END_TIME] + 2*day_length
+  elif ta_bounds == B4_ASSGT_TIME:
+    start_time_bound = 0
+    end_time_bound = all_startend_times[year_q][START_TIME]
+  elif ta_bounds == ALL_TA_TIME:
+    start_time = 0
+    end_time_bound = all_exam_times[year_q][FINAL_TIME]
+  # for uname in lair_dict:
+  #   if uname not in posix_lookup:
+  #     # could be possible if uname is in holdout set
+  #     continue
+  ta_dict = {}
+  for uname in lair_dict:
+    uname_year, uname_q = uname[:4], uname[4:6]
+    uname_year_q = '%s_%s' % (int(uname_year), int(uname_q))
+    ta_length = 0
+    ta_posix_length = 0
+    for start_ta_time, end_ta_time, ta_uname in lair_dict[uname]:
+      start_ta_time = scale_days(start_ta_time, uname_year_q, year_q)
+      end_ta_time = scale_days(end_ta_time, uname_year_q, year_q)
+      if ta_bounds != 0:
+        if end_ta_time <= start_time_bound:
+          continue
+        if start_ta_time >= end_time_bound:
+          continue
+        # ta help was outside of assignment time limit
+      ta_length += 1
+      ta_posix_length += end_ta_time - start_ta_time
+    ta_dict[uname] = [ta_length, ta_posix_length/(day_length/24)]
+  return ta_dict
+
+def get_ta_start_time(output_dir, year_q=None):
+  start_time_bound = all_startend_times[year_q][START_TIME]
+  end_time_bound = all_startend_times[year_q][END_TIME] + 2*day_length
+  year_q_list = []
+  lair_dict = {}
+  if not year_q:
+    for year_q_dirname in ['2012_1', '2013_1', '2014_1']:
+      try:
+        year, q = year_q_dirname.split('_')
+        int(year), int(q)
+      except: continue
+
+      year_q = year_q_dirname
+      lair_dict.update(load_student_lair(output_dir, year_q))
+      print "num students gotten help in %s:" % year_q, len(load_student_lair(output_dir, year_q).keys())
+      year_q_list.append(year_q)
+    year_q_list.sort()
+    year_q = '2014_1'
+  else:
+    lair_dict = load_student_lair(output_dir, year_q)
+  ta_dict = {}
+  for uname in lair_dict:
+    uname_year, uname_q = uname[:4], uname[4:6]
+    uname_year_q = '%s_%s' % (int(uname_year), int(uname_q))
+    ta_length = 0
+    ta_posix_length = 0
+    vals = []
+    for start_ta_time, end_ta_time, ta_uname in lair_dict[uname]:
+      start_ta_time = scale_days(start_ta_time, uname_year_q, year_q)
+      end_ta_time = scale_days(end_ta_time, uname_year_q, year_q)
+      if end_ta_time <= start_time_bound:
+        continue
+      if start_ta_time >= end_time_bound:
+        continue
+      vals.append(start_ta_time)
+    if vals:
+      ta_dict[uname] = min(vals)
+  return ta_dict
 
 def get_ta_stats(output_dir, year_q=None, ta_bounds=ALL_TA_TIME, work_limit=0):
   year_q_list = []
