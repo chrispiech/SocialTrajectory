@@ -56,6 +56,7 @@ def check_timestamps(code_dir):
   uname_quarters = {}
   orig_all_unames = 0
   all_year_q = set()
+  unames_per_year_q = {}
   for f in os.listdir(code_dir):
     uname = f.split('/')[-1].split('_')[0]
     orig_all_unames += 1
@@ -72,6 +73,9 @@ def check_timestamps(code_dir):
     #   print "expand: %s ignored, corrupt git" % (student_dir)
       continue
     uname_quarters[uname].append((f, date_str))
+    if year_q not in unames_per_year_q:
+      unames_per_year_q[year_q] = set()
+    unames_per_year_q[year_q].add(uname)
   all_unames = 0
   valid_unames = 0
   for uname in uname_quarters:
@@ -80,6 +84,9 @@ def check_timestamps(code_dir):
       valid_unames += 1
   print "valid names", valid_unames, "all names", all_unames, "all in listdir", orig_all_unames
   print "all quarters", all_year_q
+
+  counts_per_year_q = dict([(year_q, len(unames_per_year_q[year_q])) for year_q in unames_per_year_q])
+  print "names per quarter", counts_per_year_q
   return uname_quarters
 
 """

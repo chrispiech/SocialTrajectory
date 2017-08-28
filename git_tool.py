@@ -10,7 +10,7 @@ Each snapshot will be in a timestamp folder (also contains git hash).
 Timestamp: UNIX timestamp.
   To convert to human dates: date -d @<dirname>
 """
-def expand_all_commits(code_dir, target_dir):
+def expand_all_commits(code_dir, target_dir, only_year=None):
   print code_dir
   uname_lookup_by_year_q = load_uname_lookup_by_year_q()
   latest_submissions = get_latest_submissions(code_dir)
@@ -21,7 +21,7 @@ def expand_all_commits(code_dir, target_dir):
     latest_submit = latest_submissions[student]
     student_dir = os.path.join(code_dir, latest_submit)
     year_q = get_submit_time(student_dir) 
-    if not year_q: return (-1,'','',-1,'',-1)
+    if (not year_q) or only_year != year_q: return (-1,'','',-1,'',-1)
     year_target_dir = os.path.join(target_dir, year_q)
     if year_q not in uname_lookup_by_year_q or \
           latest_submit not in uname_lookup_by_year_q[year_q]:
