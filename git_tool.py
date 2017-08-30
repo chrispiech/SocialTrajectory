@@ -10,7 +10,7 @@ Each snapshot will be in a timestamp folder (also contains git hash).
 Timestamp: UNIX timestamp.
   To convert to human dates: date -d @<dirname>
 """
-def expand_all_commits(code_dir, target_dir):
+def expand_all_commits(code_dir, target_dir, only_year=None):
   print code_dir
   uname_lookup_by_year_q = load_uname_lookup_by_year_q()
   latest_submissions = get_latest_submissions(code_dir)
@@ -21,16 +21,20 @@ def expand_all_commits(code_dir, target_dir):
     latest_submit = latest_submissions[student]
     student_dir = os.path.join(code_dir, latest_submit)
     year_q = get_submit_time(student_dir) 
-    if not year_q: return (-1,'','',-1,'',-1)
+    if (not year_q) or only_year != year_q: return (-1,'','',-1,'',-1)
     year_target_dir = os.path.join(target_dir, year_q)
     if year_q not in uname_lookup_by_year_q or \
           latest_submit not in uname_lookup_by_year_q[year_q]:
         add_uname_to_lookup(latest_submit, year_q, uname_lookup_by_year_q)
     student_id = uname_lookup_by_year_q[year_q][latest_submit]
+    #if student_id != '2012010247': return (-1,'','',-1,'',-1)
     return i, student, student_dir, student_id, year_target_dir, num_students
 
   students = sorted(latest_submissions.keys())
   zipped_args = map(get_commit_args, enumerate(students))
+  non_students = [student for i, student in enumerate(students) if zipped_args[i][0] == -1]
+  #print "unsuccessful"
+  #print '\n'.join([latest_submissions[student] for student in non_students])
   pool = ThreadPool(8)
   results = pool.map(thread_process_commit, zipped_args)
   pool.close()
@@ -260,6 +264,7 @@ def copy_all_final(code_dir, final_submissions_dir):
     student_dir = os.path.join(code_dir, latest_submit)
     year_q = get_submit_time(student_dir) 
     if not year_q: continue
+    if year_q != '2012_1': continue
     if year_q not in uname_lookup_by_year_q or \
           latest_submit not in uname_lookup_by_year_q[year_q]:
         add_uname_to_lookup(latest_submit, year_q, uname_lookup_by_year_q)

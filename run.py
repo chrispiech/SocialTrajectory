@@ -52,12 +52,12 @@ Expands all commits.
 """
 def run(code_dir, target_dir, final_submissions_dir, output_dir):
   reset_all_to_master(code_dir)
-  #check_timestamps(code_dir)
   #get_unique_unames(code_dir)
-
-  expand_all_commits(code_dir, target_dir)
-  # check_all_commits(target_dir, "2012_1")
+  #check_timestamps(CODE_DIR)
   #copy_all_final(code_dir, final_submissions_dir)
+
+  expand_all_commits(code_dir, target_dir, only_year='2012_1')
+  # check_all_commits(target_dir, "2012_1")
   pass
 
 def graph_general(code_dir, output_dir):
@@ -209,8 +209,8 @@ def baseline(moss_dir, output_dir):
 if __name__ == "__main__":
   #anonymize(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, COMMIT_DIR)
   #make_holdout(CODE_DIR, HOLDOUT_DIR, EXPT_DIR)
-  #run(CODE_DIR, COMMIT_DIR, FINAL_SUBMISSIONS_DIR, OUTPUT_DIR)
-  moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
+  run(CODE_DIR, COMMIT_DIR, FINAL_SUBMISSIONS_DIR, OUTPUT_DIR)
+  #moss(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR, FINAL_SUBMISSIONS_DIR)
   #graph_general(CODE_DIR, OUTPUT_DIR)
   #baseline(MOSS_OUTPUT_TOP_DIR, OUTPUT_DIR)
   print tfw
