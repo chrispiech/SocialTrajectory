@@ -31,13 +31,17 @@ def load_top_sims(year_q):
             line = f.readline()
     return top_sims
 
-headers_hss = ['uname', 'hss_num', 'hss_frac', 'hss_time', 'hss_token', 'hss_pother', 'hss_online']
-def save_outliers(year_q, outlier_dict):
+headers_hss = ['uname', 'hss_num', 'hss_frac', 'hss_time', 'hss_token', 'hss_pother', 'hss_online', 'other']
+def save_outliers(year_q, outlier_dict, add_uname=True):
     unames = sorted(outlier_dict.keys())
     with open(os.path.join(sim_dir, '%s_outliers.csv') % year_q, 'w') as f:
         f.write('%s\n' % ','.join(headers_hss))
-        f.write('\n'.join(['%s,%s' % (uname,
+        if add_uname:
+            f.write('\n'.join(['%s,%s' % (uname,
                             ','.join(map(str,outlier_dict[uname]))) for uname in unames]))
+        else:
+            f.write('\n'.join([','.join(map(str,outlier_dict[uname])) \
+                    for uname in unames]))
         print "Wrote outliers to", f.name
 
 def load_outliers(year_q):

@@ -29,6 +29,13 @@ def bootstrap_on_field(uname_np, field_x, field_ys, bins):
     num_unames = uname_np.shape[0]
     x_np = uname_np[:,get_header_uname_ind(field_x)]
     uname_bin_inds = get_bin_inds(x_np, bins)
+    if field_x == 'hss_frac':
+        for i, bin_val in enumerate(bins):
+            if bin_val == 1.:
+                uname_bin_inds[i-1] = np.array(uname_bin_inds[i-1].tolist() + uname_bin_inds[i].tolist())
+                uname_bin_inds[i] = []
+                print "hss frac", map(len, uname_bin_inds)
+                break
     field_inds = map(get_header_uname_ind, field_ys)
     all_things = []
     for uname_bin_ind, bin_i in zip(uname_bin_inds, bins[:-1]):
@@ -108,6 +115,52 @@ def prepare_stats_for_writing(headers_and_stats_per_bin, bins, field_ys):
                 all_bin_header_stats[2*j+1] += s[j]
     return all_bin_header_stats
 
+def prepare_stats_for_graphing(headers_and_stats_per_bin, bins, field_ys):
+    nz_inds = []
+    for i, (h, s) in enumerate(headers_and_stats_per_bin):
+        if h is not None and s is not None:
+            nz_inds.append(i)
+    headers_and_stats_per_bin = [headers_and_stats_per_bin[i] for i in nz_inds]
+    bins = [bins[i] for i in nz_inds]
+    all_graph_stats = [['']]
+    for i, (h, s) in enumerate(headers_and_stats_per_bin):
+        all_graph_stats.append([bins[i]])
+    print "prior", all_graph_stats
+    stat_inds = [-2, -1, 0, 2] # 2.5, 97.5, original mean, boot se
+    for j, field_y in enumerate(field_ys):
+        # 2 rows per bin...
+        # for i, (h, s) in enumerate(headers_and_stats_per_bin):
+        #     all_graph_stats[i+1].append('') # because field_y takes up one row
+        #     for stat_ind in stat_inds[:-1]:
+        #         all_graph_stats[0].append(bins[i])
+        #         for k, _ in enumerate(headers_and_stats_per_bin):
+        #             if i == k:
+        #                 all_graph_stats[k+1].append(s[j][stat_ind])
+        #             else:
+        #                 all_graph_stats[k+1].append('')
+
+        # one row...graph percentile as err bar and A-OK
+        all_graph_stats[0].append(field_y)
+        all_graph_stats[0] += ['CI 2.5', 'CI 97.5', 'mean', 'boot se']
+        for i, (h, s) in enumerate(headers_and_stats_per_bin):
+            all_graph_stats[i+1].append('') # because field_y takes up one row
+            for stat_ind in stat_inds:
+                all_graph_stats[i+1].append(s[j][stat_ind])
+
+    print map(len, all_graph_stats)
+
+    # for j, field_y in enumerate(field_ys):
+    #     # add field name header
+    #     all_graph_stats[j+1] = [field_y]
+
+    # for i, (h, s) in enumerate(headers_and_stats_per_bin):
+    #     if h is None or s is  None: continue
+    #     for stat_ind in [-2, -1, 0]: # 2.5, 97.5, original mean
+    #         all_graph_stats[0].append(bins[i])
+    #         for j, _ in enumerate(field_ys):
+    #             all_graph_stats[j+1].append(s[j][stat_ind])
+    return all_graph_stats
+
 def save_boot_stats(uname_np, field_x, field_ys, bins, prefix=None):
     if not prefix:
         prefix = ''
@@ -117,17 +170,47 @@ def save_boot_stats(uname_np, field_x, field_ys, bins, prefix=None):
     cols_to_write = prepare_stats_for_writing(all_things, bins, field_ys)
     write_tsv(os.path.join(workbench_dir, '%sstats_%s.tsv' % (prefix, field_x)),
         zip(*cols_to_write))
+    cols_to_write = prepare_stats_for_graphing(all_things, bins, field_ys)
+    write_tsv(os.path.join(workbench_dir, '%sgraphs_%s.tsv' % (prefix, field_x)),
+        zip(*cols_to_write))
+
+    
+def separate_by_field(uname_np, binary_field):
+    binary_np = uname_np[:,get_header_uname_ind(binary_field)]
+    binary_options = sorted(np.unique(binary_np).tolist())
+    if len(binary_options) != 2:
+        return "not binary field"
+    false_opt, true_opt = binary_options
+    false_np = uname_np[binary_np == false_opt,:]
+    true_np = uname_np[binary_np == true_opt,:]
+    return false_np, true_np
+    
+def save_hss_stats(uname_np, field_xs, field_ys, bin_xs_all):
+    non_hss_np, hss_np = separate_by_field(uname_np, 'hss_true')
+    print "non hss", non_hss_np.shape, "hss", hss_np.shape, "orig", uname_np.shape
+    for field_x, bin_xs in zip(field_xs, bin_xs_all):
+        save_boot_stats(non_hss_np, field_x, field_ys, bin_xs, prefix='non')
+        save_boot_stats(hss_np, field_x, field_ys, bin_xs, prefix='hss')
+    offline_hss_np, online_hss_np = separate_by_field(hss_np, 'hss_online')
+    print "offline shape", offline_hss_np.shape, "online shape", online_hss_np.shape
+
+    # run only for hss frac
+    field_xs = ['hss_frac']
+    field_ys += ['hss_frac', 'hss_pother', 'hss_day']
+    bin_xs_all = [get_bins(hss_np, 'hss_frac', .2)]
+    for field_x, bin_xs in zip(field_xs, bin_xs_all):
+        save_boot_stats(online_hss_np, field_x, field_ys, bin_xs, prefix='online')
+        save_boot_stats(offline_hss_np, field_x, field_ys, bin_xs, prefix='offline')
+
 
 if __name__ == '__main__':
     uname_np = load_np(workbench_dir) 
-    field_xs = ['start_day', 'num_commits', 'work_hr', 'hss_online', 'hss_true']
+    field_xs = ['start_day', 'num_commits', 'work_hr']
     field_ys = ['start_day', 'num_commits', 'work_hr', 'mt_rank', 'f_rank',
             'ta_hrs', 'ta_dur_hrs', 'ta_b4_mt_hrs', 'ta_bt_exam_hrs']
-    bin_widths = [1, 50, 5, 1, 1]
+    bin_widths = [1, 50, 5]
     bin_xs_all = [get_bins(uname_np, field_x, bin_width) \
             for field_x, bin_width in zip(field_xs, bin_widths)]
     for field_x, bin_xs in zip(field_xs, bin_xs_all):
-        field_ys_new = field_ys
-        if 'hss' in field_x:
-            field_ys_new = field_ys + [] # nothing for now
-        save_boot_stats(uname_np, field_x, field_ys_new, bin_xs)
+        save_boot_stats(uname_np, field_x, field_ys, bin_xs)
+    save_hss_stats(uname_np, field_xs, field_ys, bin_xs_all)
