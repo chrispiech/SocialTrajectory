@@ -145,13 +145,13 @@ class Runner(object):
                     #assert p == g[2] * 100 // t, line
                     if submit_fn: submit_fn(g[i], t, l)
                 if g[0] not in token_counts:
-                  token_counts[g[0]] = g[4]
+                  token_counts[g[0]] = (g[4], g[6])
                 regions = self._parse_regions(g[-1])
                 if pair_fn: pair_fn(*(g[:4] + [regions]))
         if print_tokens:
-          # with open(os.path.join(os.getcwd(),'tokens.csv'), 'w') as f:
-          #   f.write('\n'.join(["{},{}".format(fname, token_counts[fname]) for fname in sorted(token_counts.keys())]))
-          #   print("wrote tokens to {}".format(f.name))
+          with open(os.path.join(os.getcwd(),'tokens.csv'), 'w') as f:
+            f.write('\n'.join(["{},{},{}".format(fname, token_counts[fname][0],token_counts[fname][1]) for fname in sorted(token_counts.keys())]))
+            print("wrote tokens to {}".format(f.name))
 
     def _run_common(self):
         for i, p in enumerate(self.pairs):
