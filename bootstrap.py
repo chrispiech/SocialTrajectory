@@ -205,10 +205,10 @@ def save_hss_stats(uname_np, field_xs, field_ys, bin_xs_all):
 
 if __name__ == '__main__':
     uname_np = load_np(workbench_dir) 
-    field_xs = ['start_day', 'num_commits', 'work_hr']
+    field_xs = ['start_day', 'num_commits', 'work_hr', 'ta_bt_exam_hrs']
     field_ys = ['start_day', 'num_commits', 'work_hr', 'mt_rank', 'f_rank',
             'ta_hrs', 'ta_dur_hrs', 'ta_b4_mt_hrs', 'ta_bt_exam_hrs']
-    bin_widths = [1, 50, 5]
+    bin_widths = [1, 50, 5,3]
     bin_xs_all = [get_bins(uname_np, field_x, bin_width) \
             for field_x, bin_width in zip(field_xs, bin_widths)]
     for field_x, bin_xs in zip(field_xs, bin_xs_all):

@@ -49,10 +49,11 @@ def get_ellipse_outliers(x, y, coords_ell, print_stuff=False):
 
 def get_abs_outliers(x, y, coords_abs, print_stuff=False):
     x_thresh, y_thresh = coords_abs
-    out_inds = np.nonzero(np.logical_and(x >= x_thresh, y>= y_thresh))[0]
+    in_bools = np.logical_and(x < x_thresh, y < y_thresh)
+    in_inds = np.nonzero(in_bools)[0]
+    out_inds = np.nonzero(np.logical_not(in_bools))[0]
     if print_stuff:
         print out_inds, x_thresh, y_thresh
-    in_inds = np.nonzero(np.logical_not(np.logical_and(x >= x_thresh, y>= y_thresh)))[0]
     return out_inds, in_inds
 
 def ell_outliers_helper(coords_ell):
@@ -100,7 +101,7 @@ def adjust_slopes(tokens, pothers):
     new_tokens[use_double] = tokens[use_double]/2
     return new_tokens, new_pothers
 
-def save_outlier_params(params, name, year_q=None):
+def save_outlier_params(params, name, year_q=None, sim_dir=None):
     prefix = name
     if year_q:
         prefix = '%s_%s' % (prefix, year_q)
@@ -108,11 +109,11 @@ def save_outlier_params(params, name, year_q=None):
         f.write(','.join(map(str,params)))
         print "Wrote outlier params to", f.name
 
-def save_ell_params(params):
-    save_outlier_params(params, 'ell')
+def save_ell_params(params, sim_dir=None):
+    save_outlier_params(params, 'ell', sim_dir=sim_dir)
 
-def save_abs_params(params):
-    save_outlier_params(params, 'abs')
+def save_abs_params(params, sim_dir=None):
+    save_outlier_params(params, 'abs', sim_dir=sim_dir)
 
 def load_params(name, year_q=None):
     prefix = name

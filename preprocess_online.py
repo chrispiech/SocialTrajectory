@@ -13,16 +13,22 @@ def get_new_online(outlier_dict, year_q):
     update_outlier_others(outlier_dict, edge_dict)
 
     new_onlines = []
-    for uname in unames:
+    count_online = 0
+    for i, uname in enumerate(unames):
+        print i, uname
         if is_online(uname, set(), onlines, edge_dict):
+            print "\t", uname, "online"
+            count_online += 1
             if uname not in onlines:
                 new_onlines.append(uname)
+    print "total online", count_online, "/", len(unames)
     return new_onlines
 
 def is_online(uname, seen_set, onlines, edge_dict):
     if uname in onlines: return True
     if uname not in edge_dict: return False
     other = edge_dict[uname]
+    print "\t", uname, "->", other
     if other in seen_set: return False
     seen_set.add(uname)
     return is_online(other, seen_set, onlines, edge_dict)

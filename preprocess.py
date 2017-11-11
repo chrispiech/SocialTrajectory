@@ -5,7 +5,7 @@ import pandas as pd
 from scipy.signal import medfilt
 from scipy.optimize import curve_fit
 
-sim_dir = os.path.join(os.getcwd(), 'top_sim')
+SIM_DIR = os.path.join(os.getcwd(), 'top_sim_new_new')
 headers = ['uname', 'other', 'token', 'pself', 
         'pother', 'step', 'time',
         'hash', 'fname', 'fpath',
@@ -16,7 +16,9 @@ largest_factor = 1500
 def get_header_ind(field):
     return headers.index(field)
 
-def load_top_sims(year_q):
+def load_top_sims(year_q, sim_dir=None):
+    if sim_dir is None:
+      sim_dir = SIM_DIR
     top_sims = {}
     with open(os.path.join(sim_dir, '%s.csv' % year_q), 'r') as f:
         line = f.readline() # headers
@@ -29,10 +31,13 @@ def load_top_sims(year_q):
             top_sims[uname].append(fields)
 
             line = f.readline()
+        print "loaded top sims from", f.name
     return top_sims
 
 headers_hss = ['uname', 'hss_num', 'hss_frac', 'hss_time', 'hss_token', 'hss_pother', 'hss_online', 'other']
-def save_outliers(year_q, outlier_dict, add_uname=True):
+def save_outliers(year_q, outlier_dict, add_uname=True, sim_dir=None):
+    if sim_dir is None:
+      sim_dir = SIM_DIR
     unames = sorted(outlier_dict.keys())
     with open(os.path.join(sim_dir, '%s_outliers.csv') % year_q, 'w') as f:
         f.write('%s\n' % ','.join(headers_hss))
@@ -44,9 +49,14 @@ def save_outliers(year_q, outlier_dict, add_uname=True):
                     for uname in unames]))
         print "Wrote outliers to", f.name
 
-def load_outliers(year_q):
+def load_outliers(year_q, sim_dir=None):
+    if sim_dir is None:
+      sim_dir = SIM_DIR
     outlier_dict = {}
-    with open(os.path.join(sim_dir, '%s_outliers.csv') % year_q, 'r') as f:
+    outlier_fpath = os.path.join(sim_dir, '%s_outliers.csv') % year_q
+    if not os.path.exists(outlier_fpath):
+      return None, None
+    with open(outlier_fpath, 'r') as f:
         line = f.readline() # headers
         headers = (line.strip()).split(',')
 
@@ -59,7 +69,9 @@ def load_outliers(year_q):
             line = f.readline()
     return outlier_dict, headers
 
-def load_95():
+def load_95(sim_dir=None):
+    if sim_dir is None:
+      sim_dir = SIM_DIR
     with open(os.path.join(sim_dir, 'moss_ps_po.csv'), 'r') as f:
         line = f.readline() # headers
         lines = f.readlines()
@@ -138,7 +150,9 @@ def preprocess_top_sims(top_sims):
     [norm_step(uname) for uname in top_sims]
     return norm_step, round_time, med_filt
 
-def save_top_sims(top_sims, year_q, addstr=''):
+def save_top_sims(top_sims, year_q, addstr='', sim_dir=None):
+    if sim_dir is None:
+      sim_dir = SIM_DIR
     with open(os.path.join(sim_dir, '%s%s.csv' % (year_q, addstr)), 'w') as f:
         f.write('%s\n' % ','.join(headers))
         for uname in sorted(top_sims.keys()):
@@ -152,7 +166,7 @@ if __name__ == '__main__':
         preprocess_top_sims(top_sims)
         subset = {}
         unames = top_sims.keys()
-        np.random.shuffle(unames)
+        #np.random.shuffle(unames)
         uname_set = unames
         # uname_set = unames[:10]
         # uname_set = ['2012010160', '2012010132', '2012010103', '2012010028', '2012010414', '2012010221', '2012010329', '2012010018', '2012010376', '2012010369']

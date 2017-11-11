@@ -8,7 +8,7 @@ from scipy.signal import medfilt
 from scipy.optimize import curve_fit
 from preprocess import *
 
-sim_dir = os.path.join(os.getcwd(), 'top_sim')
+sim_dir = os.path.join(os.getcwd(), 'top_sim_new')
 lair_dir = os.path.join(os.getcwd(), 'lair')
 nonsense_day = 12345 # must be gibberish days, since we are using t-minus T_T
 headers_uname = ['uname',
@@ -37,6 +37,16 @@ def add_field(arr, ind, val):
         for i in range(len(arr), ind+1):
             arr.append('-1')
     arr[ind] = str(val)
+
+def remove_ungraded(uname_info, year_q):
+    unames = uname_info.keys()
+    unames_removed = []
+    f_rank_ind = get_header_uname_ind('f_rank')
+    for uname in unames:
+        if int(float(uname_info[uname][f_rank_ind]))== -1:
+            del(uname_info[uname])
+            unames_removed.append(uname)
+    print "unames removed:", sorted(unames_removed)
 
 def preprocess_uname_info(uname_info, year_q):
     top_sims = load_top_sims(year_q)
@@ -149,7 +159,8 @@ def preprocess_uname_info(uname_info, year_q):
     [time_things(uname) for uname in uname_info]
     grade_things()
     outlier_dict, hss_headers = load_outliers(year_q)
-    [hss_things(uname) for uname in uname_info]
+    if outlier_dict:
+      [hss_things(uname) for uname in uname_info]
     advanced_time_things()
     ta_things()
 
@@ -194,8 +205,14 @@ def save_uname_info(uname_info, year_q):
             f.write('\n')
         print "Wrote", f.name
 
+
 if __name__ == '__main__':
     for year_q in ['2012_1', '2013_1', '2014_1']:
         uname_info = load_uname_info(sim_dir, year_q)
         preprocess_uname_info(uname_info, year_q)
+        save_uname_info(uname_info, year_q)
+
+    for year_q in ['2012_1', '2013_1', '2014_1']:
+        uname_info = load_uname_info(sim_dir, year_q)
+        remove_ungraded(uname_info, year_q)
         save_uname_info(uname_info, year_q)
