@@ -35,7 +35,8 @@ def call_cmd(cmd):
   return subprocess.Popen([cmd],stdout=subprocess.PIPE, shell=True).communicate()[0]
 
 def baseline(CURRENT_Q):
-  current_q = 'baseline'
+  #current_q = 'baseline'
+  current_q = os.path.join('final_submissions', CURRENT_Q)
   if not os.path.exists(os.path.join(MOSS_OUTPUT_DIR, current_q)):
     os.makedirs(os.path.join(MOSS_OUTPUT_DIR, current_q))
   #current_q = 'final_submissions' # for holdout and mass; all quarters!
@@ -107,14 +108,15 @@ def thread_process(args):
 
   commit_moss_dir = os.path.join(moss_q_dir, commit)
   if os.path.exists(commit_moss_dir):
-    print("commit already processed")
-    return
+    print("redoing...")
+    shutil.rmtree(commit_moss_dir)
   temp_dir = prepare_temp_dir(current_q_dir, commit)
   if not temp_dir:
     print("skipping dir %s (no %s files)" % (commit, FILETYPE))
     return
 
   # make basically no threshold
+  it_worked = False # hack
   m = make_moss_runner(temp_dir, final_q_dir)
   try:
     gen_moss_output(m, commit, commit_moss_dir)
@@ -170,19 +172,20 @@ def seconds_to_time(seconds):
   return "%d:%02d:%02d%s" % (h, m, s, dec)
  
 if __name__ == "__main__":
-  print(os.listdir(TARGET_DIR))
-  for year_q_dirname in os.listdir(TARGET_DIR):
-    try:
-      year, q = year_q_dirname.split('_')
-      int(year), int(q)
-    except: continue
+  # for year_q_dirname in os.listdir(TARGET_DIR):
+  #   try:
+  #     year, q = year_q_dirname.split('_')
+  #     int(year), int(q)
+  #   except: continue
 
   runtimes = []
-  year_q_dirnames = ["2012_1", "2013_1", "2014_1"]
+  year_q_dirnames = ["2012_1"]#, "2013_1", "2014_1"]
   for year_q_dirname in year_q_dirnames:
     start_time = time.time()
-    pymoss.util.time("Running all moss", lambda:
-                  multi_moss(year_q_dirname))
+    # pymoss.util.time("Running all moss {}".format(year_q_dirname),
+    #     lambda: multi_moss(year_q_dirname))
+    pymoss.util.time("Running baseline moss {}".format(year_q_dirname),
+        lambda: baseline(year_q_dirname))
     end_time = time.time()
     runtimes.append(end_time - start_time)
 
