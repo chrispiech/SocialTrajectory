@@ -2,18 +2,22 @@ from helper import *
 from git_helper import *
 from time import strptime
 from datetime import date
+import time
 
 output_moss_dir = "moss"
 """
 Overall moss processing function.
 """
 def moss_process(moss_dir, year_q, output_dir, use_diff=False):
+  start_time = time.time()
   if use_diff:
     year_q = 'diff_%s' % year_q
     for diff_type in [1,2]:
       write_all_moss_similar(moss_dir, year_q, output_dir, use_diff=diff_type)
   else:
     write_all_moss_similar(moss_dir, year_q, output_dir)
+  time_elapsed = time.time() - start_time
+  print "Time for {} process moss: {}".format(year_q, seconds_to_time(time_elapsed))
   #all_sims = load_all_sims_from_log(output_dir, year_q)
   #return all_sims
 

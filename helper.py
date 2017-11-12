@@ -798,3 +798,9 @@ def load_meds(output_dir):
       line = f.readline()
   #print ">>>>>>med norm commit", med_by_normcommit
   return med_by_normcommit
+
+def seconds_to_time(seconds):
+  dec = ("%.4f" % (seconds % 1)).lstrip('0')
+  m, s = divmod(seconds, 60)
+  h, m = divmod(m, 60)
+  return "%d:%02d:%02d%s" % (h, m, s, dec)
