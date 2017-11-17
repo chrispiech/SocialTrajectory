@@ -37,8 +37,6 @@ def call_cmd(cmd):
 def baseline(CURRENT_Q):
   #current_q = 'baseline'
   current_q = os.path.join('final_submissions', CURRENT_Q)
-  if not os.path.exists(os.path.join(MOSS_OUTPUT_DIR, current_q)):
-    os.makedirs(os.path.join(MOSS_OUTPUT_DIR, current_q))
   #current_q = 'final_submissions' # for holdout and mass; all quarters!
 
   OUTPUT_TEMP_DIR_NAME = "baseline_temp"
@@ -56,10 +54,16 @@ def baseline(CURRENT_Q):
   m.run(npairs=num_dirs_ceil)
   h = pymoss.Html(m, "%s" % current_q)
   moss_dir = (h.gen_all(OUTPUT_TEMP_DIR_NAME)).split('/')[-1]
-  commit_moss_dir = os.path.join(MOSS_OUTPUT_DIR, current_q)
-  mv_cmd = "mv %s %s" % (os.path.join(cwd, moss_dir), commit_moss_dir)
+
+  target_dir = os.path.join(MOSS_OUTPUT_DIR, 'baseline', CURRENT_Q)
+  if os.path.exists(target_dir):
+    shutil.rmtree(target_dir)
+  elif not os.path.exists(os.path.join(MOSS_OUTPUT_DIR, 'baseline')):
+    os.makedirs(os.path.join(MOSS_OUTPUT_DIR, 'baseline'))
+  mv_cmd = "mv %s %s" % (os.path.join(cwd, moss_dir), target_dir)
   print("moving moss output:", mv_cmd)
   call_cmd(mv_cmd)
+  os.chdir(cwd)
 
 from multiprocessing import Lock, Value
 class LockedCounter(object):
@@ -179,7 +183,7 @@ if __name__ == "__main__":
   #   except: continue
 
   runtimes = []
-  year_q_dirnames = ["2012_1"]#, "2013_1", "2014_1"]
+  year_q_dirnames = ["2012_1", "2013_1", "2014_1"]
   for year_q_dirname in year_q_dirnames:
     start_time = time.time()
     # pymoss.util.time("Running all moss {}".format(year_q_dirname),

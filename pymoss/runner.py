@@ -93,13 +93,23 @@ class Runner(object):
             self.pairs.append(p)
             if not p.is_self: num_nonself += 1
             if num_nonself == npairs: break
+        self.fname_pairs = {}
+        # for p in sorted(pairs, key=lambda p: -p.tokens.match):
+        #   if p.is_self: continue
+        #   fname = p.submits[0].name
+        #   if fname not in self.fname_pairs:
+        #     self.fname_pairs[fname] = p
+          
+        if self.fname_pairs:
+          util.msg("Total number of fname pairs? {}".format(len(self.fname_pairs.keys())))
+          util.time("Finding common code for fname_pairs",
+              self._run_common_fnames)
         util.time("Finding common code", self._run_common)
         util.msg("OUTPUT: %d submits, %d pairs, reporting top %d" % \
                   (len(self.submits), total_pairs, len(self.pairs)))
 
         os.chdir(prevwd)
 
-
     def _gen_manifest(self, file, pair=None):
         assert self.counts[util.CURRENT] < util.Submit.ARCHIVE_SET
         with open(file, "w") as f:
@@ -130,7 +140,8 @@ class Runner(object):
                    "total lines (-?\d+) \+ (-?\d+), percentage matched (-?\d+)% \+ (-?\d+)%# (.*)"
         line_re = re.compile(LINE_PAT)
 
-        token_counts = {}
+        len_counts = {}
+        
         with open(file) as f:
             for line in f:
                 line = line.strip()
@@ -144,14 +155,31 @@ class Runner(object):
                     # Verify percentage calculation
                     #assert p == g[2] * 100 // t, line
                     if submit_fn: submit_fn(g[i], t, l)
-                if g[0] not in token_counts:
-                  token_counts[g[0]] = (g[4], g[6])
+
+                # start logging
+                if g[0] not in len_counts:
+                  #print(line)
+                  len_counts[g[0]] = (g[4], g[6])
+                # # figure out uname
+                # uname_fname = g[0].split('/')[-1]
+                # uname, fname = uname_fname.split('_')
+                # if uname not in match_counts:
+                #   # pother_fname, pother_t, pother_tc, pother_po, pother_ps, token_fname, token_t, token_tc, token_po, token_ps
+                #   match_counts[uname] = [''] + [0] * 4 + [''] + [0]*4
+                # other_fname = g[1].split('/')[-1]
+                # if g[9] > match_counts[uname][4]:
+                #   print(line)
+                #   print(g)
+                #   #match_counts[uname][:4] = [other_fname, g[
+
+                # end logging
+
                 regions = self._parse_regions(g[-1])
                 if pair_fn: pair_fn(*(g[:4] + [regions]))
-        if print_tokens:
-          with open(os.path.join(os.getcwd(),'tokens.csv'), 'w') as f:
-            f.write('\n'.join(["{},{},{}".format(fname, token_counts[fname][0],token_counts[fname][1]) for fname in sorted(token_counts.keys())]))
-            print("wrote tokens to {}".format(f.name))
+        # if print_tokens:
+        #   with open(os.path.join(os.getcwd(),'tokens.csv'), 'w') as f:
+        #     f.write('\n'.join(["{},{},{}".format(fname, len_counts[fname][0],len_counts[fname][1]) for fname in sorted(len_counts.keys())]))
+        #     print("wrote student file lengths (tokens/lines) to {}".format(f.name))
 
     def _run_common(self):
         for i, p in enumerate(self.pairs):
@@ -160,6 +188,41 @@ class Runner(object):
             self._exec(self.NOBASE_THRESHOLD, manifest, results)
             fn = lambda *args: self._update_nobase(p, *args)
             self._parse_results(results, self._update_submit, fn)
+    
+    def _run_common_fnames(self):
+        match_tokens = {}
+        # pother_other, pother_fname,
+        #     pother_t, pother_tc, pother_po, pother_ps
+        # token_other, token_fname,
+        #     token_t, token_tc, token_po, token_ps
+        for i, p in enumerate(self.fname_pairs.values()):
+          manifest, results = ("%s.%d" % (s, i) for s in ("manifest", "results"))
+          self._gen_manifest(manifest, p)
+          self._exec(self.NOBASE_THRESHOLD, manifest, results)
+          fn = lambda *args: self._update_nobase(p, *args)
+          self._parse_results(results, self._update_submit, fn)
+
+          po, ps = map(lambda percent: float(percent.split('%')[0]),
+              p.percent)
+          t, tc = p.tokens.match, p.tokens.common
+          fname, other_fname = p.submits[0].name, p.submits[1].name
+          uname_fname = fname.split('/')[-1]
+          other_fname = other_fname.split('/')[-1]
+          uname = uname_fname.split('_')[0]
+          if uname not in match_tokens:
+            match_tokens[uname] = ['', ''] + [0] * 4 + ['',''] + [0]*4
+          if po > match_tokens[uname][4]:
+            match_tokens[uname][:6] = [uname_fname, other_fname,
+                t, tc, po, ps]
+          if t > match_tokens[uname][8]:
+            match_tokens[uname][6:] = [uname_fname, other_fname,
+                t, tc, po, ps]
+        print("finished parsing", len(match_tokens.keys()), "unames")
+        with open(os.path.join(os.getcwd(),'matches.csv'), 'w') as f:
+          f.write('\n'.join([
+                ','.join([uname] + list(map(str, match_tokens[uname]))) \
+              for uname in sorted(match_tokens.keys())]))
+          print("wrote matched tokens to {}".format(f.name))
 
     def _update_nobase(self, p, name1, name2, tokens, lines, regions):
         assert tuple(x.name for x in p.submits) == (name1, name2), p
